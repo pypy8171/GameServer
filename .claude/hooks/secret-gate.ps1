@@ -2,6 +2,7 @@
 #
 # git commit / git push 명령을 가로채, 스테이징된 변경(또는 push 예정 범위)에
 # DB 접속정보·서버 운영키·세션 시크릿·개인정보가 섞여있으면 기계적으로 차단한다.
+# 추가로, .gitignore 제외 대상(정책상 *.md 등)이 force-add 로 스테이징되면 차단한다(검사 d).
 # @committer 에이전트의 보안 게이트를 사람 판단에 의존하지 않는 하드 백스톱으로 보강한다.
 #
 # 차단 시: exit 2 (PreToolUse를 deny, stderr 메시지가 Claude에게 전달됨)
@@ -69,6 +70,19 @@ try {
     foreach ($t in $tracked) { $blocks += "추적 중인 시크릿 파일 누수: $t (git rm --cached 필요)" }
 } catch {}
 
+# ── (d) .gitignore 로 제외돼야 할 파일이 강제(-f)로 스테이징/푸시됨 ──────────
+# 정책: 문서(*.md) 등 .gitignore 제외 대상은 커밋 금지. git check-ignore 가 매칭이면
+#   = "무시 대상인데 스테이징/커밋됨"(git add -f 흔적) → 차단.
+#   화이트리스트(!경로)로 명시 허용한 파일은 check-ignore 가 미매칭이라 통과한다.
+#   → .md 를 올리려면 사람이 .gitignore 에 !경로 를 넣는 것이 유일한 경로다.
+foreach ($f in $staged) {
+    if ([string]::IsNullOrWhiteSpace($f)) { continue }
+    git -C $repo check-ignore -q -- "$f" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $blocks += "gitignore 제외 파일이 강제 스테이징됨(force-add 의심): $f — 정책상 커밋 금지. 올리려면 .gitignore 에 '!$f' 화이트리스트를 사람이 명시할 것"
+    }
+}
+
 # ── (c) 추가된 내용에서 실제 값 패턴 스캔 ──────────────────────────────────
 # 플레이스홀더/필드명은 통과, 실제 값으로 보이는 것만 차단
 $placeholder = 'YOUR_|CHANGEME|REDACTED|EXAMPLE|SAMPLE|<[^>]*>|x{4,}|\.\.\.|0{6,}|localhost|127\.0\.0\.1'
@@ -104,7 +118,7 @@ foreach ($line in $added) {
 # ── 판정 ──────────────────────────────────────────────────────────────────
 if ($blocks.Count -gt 0) {
     $uniq = $blocks | Select-Object -Unique
-    $msg  = "[SECRET-GATE 차단] 커밋/푸시를 막았습니다. 시크릿/개인정보 의심 항목:`n"
+    $msg  = "[SECRET-GATE 차단] 커밋/푸시를 막았습니다. 시크릿/개인정보 또는 정책 제외(gitignore) 위반 항목:`n"
     $msg += ($uniq | ForEach-Object { "  - $_" }) -join "`n"
     $msg += "`n조치: 해당 값을 제거하거나 .example/플레이스홀더로 치환 후 다시 시도하세요. "
     $msg += "오탐이면 사용자에게 확인받아 진행하세요. (이 게이트는 우회하지 마세요)"
