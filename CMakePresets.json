@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows MSVC (vcpkg)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "C:/vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
+      "environment": {
+        "TMP": "C:/Dev/tmp",
+        "TEMP": "C:/Dev/tmp"
+      }
+    },
+    {
+      "name": "linux-gcc",
+      "displayName": "Linux GCC (vcpkg)",
+      "description": "Docker/리눅스용. VCPKG_ROOT 환경변수를 vcpkg 설치 경로로 지정해야 함.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-linux"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug",   "configurePreset": "windows-msvc", "configuration": "Debug" },
+    { "name": "release", "configurePreset": "windows-msvc", "configuration": "Release" },
+    { "name": "linux",   "configurePreset": "linux-gcc" }
+  ]
+}

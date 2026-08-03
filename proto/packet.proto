@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package game.proto;
+
+// ============================================================
+//  Echo 수직 슬라이스용 메시지
+//  패킷 ID(라우팅 키)는 직렬화 포맷과 독립적으로 C++ 쪽
+//  PacketId enum (src/core/packet/packet.h) 에서 관리한다.
+// ============================================================
+
+message EchoRequest {
+  string message = 1;
+}
+
+message EchoResponse {
+  string message = 1;
+}

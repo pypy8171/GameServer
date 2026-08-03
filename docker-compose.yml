@@ -1,0 +1,15 @@
+services:
+  game-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: game-server:latest
+    container_name: game-server
+    # 호스트 7777 → 컨테이너 7777. 포트를 바꾸려면 command 와 함께 수정.
+    ports:
+      - "7777:7777"
+    # 컨테이너 안에서 리슨할 포트(=EXPOSE, ENTRYPOINT 인자).
+    command: ["7777"]
+    restart: unless-stopped
+    # SIGTERM → graceful shutdown(main.cpp) 을 위한 여유. 기본 10s 로도 충분.
+    stop_grace_period: 15s

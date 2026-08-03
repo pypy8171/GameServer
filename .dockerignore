@@ -1,0 +1,25 @@
+# 빌드 산출물 — 컨테이너 안에서 새로 빌드하므로 컨텍스트에 포함하지 않음.
+build/
+out/
+cmake-build-*/
+
+# vcpkg 로컬 캐시/설치물 (컨테이너가 자체 설치).
+vcpkg_installed/
+.vcpkg/
+
+# IDE / 에디터
+.vs/
+.vscode/
+.idea/
+
+# git / 도커 자체
+.git/
+.gitignore
+.gitattributes
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# 문서/보조 (이미지에 불필요) — 빌드엔 영향 없으나 컨텍스트 축소.
+docs/
+README.md
