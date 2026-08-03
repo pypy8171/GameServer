@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
   const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
 
   // 비동기 파일 로거 초기화(콘솔 미러링 on). 스레드 시작 전에 1회.
-  log::Init("logs/chat_server.log", log::Level::kInfo, /*console=*/true);
+  log::Init("logs/chat_server.log", log::Level::Info, /*console=*/true);
 
   SessionRegistry registry;
   Dispatcher dispatcher;

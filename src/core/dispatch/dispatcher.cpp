@@ -11,7 +11,7 @@
 namespace game::core {
 
 namespace {
-// "kChatSay(id=0x1002)" 형태로 포맷 — 로그에서 패킷을 한눈에 식별.
+// "ChatSay(id=0x1002)" 형태로 포맷 — 로그에서 패킷을 한눈에 식별.
 std::string DescribePacket(uint16_t id) {
   std::ostringstream os;
   os << PacketIdName(id) << "(id=0x" << std::hex << std::uppercase
@@ -27,7 +27,7 @@ void Dispatcher::Register(PacketId id, PacketHandler handler) {
 void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
                           uint16_t packet_size) const {
   PacketHeader header;
-  std::memcpy(&header, packet, kHeaderSize);
+  std::memcpy(&header, packet, HeaderSize);
 
   // 방향 검증(ADR-D): S->C 대역 패킷을 서버가 수신 = 프로토콜 위반 → 드롭.
   if (IsServerToClient(header.id)) {
@@ -42,8 +42,8 @@ void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
     return;
   }
 
-  const uint8_t* body = packet + kHeaderSize;
-  const uint16_t body_size = static_cast<uint16_t>(packet_size - kHeaderSize);
+  const uint8_t* body = packet + HeaderSize;
+  const uint16_t body_size = static_cast<uint16_t>(packet_size - HeaderSize);
   it->second(session, body, body_size);
 }
 

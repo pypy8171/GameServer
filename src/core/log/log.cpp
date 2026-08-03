@@ -3,6 +3,7 @@
 #include <atomic>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 #include <spdlog/async.h>
@@ -15,24 +16,46 @@ namespace {
 
 spdlog::level::level_enum ToSpd(Level l) {
   switch (l) {
-    case Level::kDebug: return spdlog::level::debug;
-    case Level::kInfo:  return spdlog::level::info;
-    case Level::kWarn:  return spdlog::level::warn;
-    case Level::kError: return spdlog::level::err;
-    case Level::kFatal: return spdlog::level::critical;
+    case Level::Debug: return spdlog::level::debug;
+    case Level::Info:  return spdlog::level::info;
+    case Level::Warn:  return spdlog::level::warn;
+    case Level::Error: return spdlog::level::err;
+    case Level::Fatal: return spdlog::level::critical;
   }
   return spdlog::level::info;
 }
 
-constexpr std::size_t kQueueSlots = 8192;       // 비동기 큐 깊이
-constexpr std::size_t kMaxFileBytes = 5 * 1024 * 1024;  // 5MB 단위 로테이션
-constexpr std::size_t kMaxFiles = 3;            // 최대 보관 파일 수
+constexpr std::size_t QueueSlots = 8192;       // 비동기 큐 깊이
+constexpr std::size_t MaxFileBytes = 5 * 1024 * 1024;  // 5MB 단위 로테이션
+constexpr std::size_t MaxFiles = 3;            // 최대 보관 파일 수
+// [%s:%# %!] = 호출 지점 소스파일:줄번호 함수명 (SPDLOG_* 매크로가
+//   __FILE__/__LINE__/함수명을 source_loc 로 캡처 → "어떤 cpp의 몇 번째 줄,
+//   어느 함수가 남겼는가"를 로그만으로 추적).
+constexpr const char* Pattern =
+    "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [tid=%t] [%s:%# %!] %v";
 
 // Init/Shutdown 1회 짝 보장(리뷰 E). 중복 Init 은 thread_pool 을 교체해
 //   기존 async_logger 의 weak_ptr 를 깨뜨릴 수 있어 무시한다. Shutdown 이 다시 내린다.
 std::atomic<bool> g_inited{false};
 
+// FATAL 전용 '동기' 로거. 일반 로거(async)와 같은 sink 를 공유하되, 별도의
+//   *동기* 로거라 flush 가 호출 스레드에서 즉시 일어난다(큐 경유 X).
+//   → LOG_FATAL 은 이 로거로 흘려 프로세스가 직후 죽어도 디스크에 남는다(리뷰 B 해소).
+//   sink 는 _mt(뮤텍스 내장)라 async 백그라운드 스레드와 동시 사용해도 안전.
+//   원자 교체: Init/Shutdown 이 세팅/해제, LOG_FATAL 이 읽기 → 레이스 없이 스냅샷.
+std::shared_ptr<spdlog::logger> g_fatal;
+std::mutex g_fatal_mtx;
+
 }  // namespace
+
+namespace detail {
+
+std::shared_ptr<spdlog::logger> FatalLogger() {
+  std::lock_guard<std::mutex> lk(g_fatal_mtx);
+  return g_fatal;  // shared_ptr 복사로 수명 고정 → 호출 중 Shutdown 이 내려도 안전
+}
+
+}  // namespace detail
 
 void Init(const std::string& file_path, Level min_level, bool console) {
   if (g_inited.exchange(true)) {
@@ -47,11 +70,11 @@ void Init(const std::string& file_path, Level min_level, bool console) {
   }
 
   // 백그라운드 스레드 1개 = MPSC(N개 io 스레드 producer → 1 소비자). CLAUDE.md 계약.
-  spdlog::init_thread_pool(kQueueSlots, 1);
+  spdlog::init_thread_pool(QueueSlots, 1);
 
   std::vector<spdlog::sink_ptr> sinks;
   sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-      file_path, kMaxFileBytes, kMaxFiles));
+      file_path, MaxFileBytes, MaxFiles));
   if (console) {
     sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
   }
@@ -63,18 +86,37 @@ void Init(const std::string& file_path, Level min_level, bool console) {
       spdlog::async_overflow_policy::block);
 
   logger->set_level(ToSpd(min_level));
-  logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [tid=%t] %v");
-  // WARN+ 발생 시 flush 를 큐에 post(백그라운드가 처리) — async 라 '즉시'가 아니다.
-  //   정상 종료 경로는 Shutdown 이 큐를 drain 하지만, 하드 크래시/Shutdown 미호출
-  //   종료 시엔 큐 잔여분(FATAL 포함)이 유실될 수 있다(리뷰 B). FATAL 동기 flush 는 M5.
+  logger->set_pattern(Pattern);
+  // WARN/ERROR 는 flush 를 큐에 post(백그라운드가 처리) — async 라 '즉시'가 아니다.
+  //   정상 종료 경로는 Shutdown 이 큐를 drain 한다. FATAL 만은 프로세스가 직후
+  //   죽을 수 있어 아래 동기 로거로 별도 처리한다(리뷰 B 해소).
   logger->flush_on(spdlog::level::warn);
 
   spdlog::set_default_logger(logger);
+
+  // FATAL 동기 로거: 같은 sink 를 공유하는 *비동기 아님* 로거. critical 에 flush_on
+  //   → LOG_FATAL 이 호출 스레드에서 즉시 디스크에 기록+flush 하고 리턴한다.
+  //   프로세스가 그 직후 죽어도 로그가 남는다. FATAL 은 프로세스 임종이라 동기 I/O
+  //   비용은 무의미(빈도 0에 수렴).
+  auto fatal =
+      std::make_shared<spdlog::logger>("fatal", sinks.begin(), sinks.end());
+  fatal->set_level(spdlog::level::critical);
+  fatal->set_pattern(Pattern);
+  fatal->flush_on(spdlog::level::critical);
+  {
+    std::lock_guard<std::mutex> lk(g_fatal_mtx);
+    g_fatal = std::move(fatal);
+  }
 }
 
 void Shutdown() {
   if (!g_inited.exchange(false)) {
     return;  // Init 안 됐거나 이미 Shutdown — no-op (idempotent)
+  }
+  {
+    // FATAL 동기 로거를 먼저 내린다. 이후 LOG_FATAL 은 fallback(동기 stdout)로 감.
+    std::lock_guard<std::mutex> lk(g_fatal_mtx);
+    g_fatal.reset();
   }
   spdlog::shutdown();  // 큐 drain + 백그라운드 스레드 join (블로킹)
   // 이후 LOG_* 가 null 기본 로거를 만나지 않도록 동기 stdout 로거로 복원.

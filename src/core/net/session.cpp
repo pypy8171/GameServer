@@ -43,32 +43,32 @@ bool Session::SetIdentity(std::string nickname) {
 }
 
 void Session::ReadHeader() {
-  recv_buf_.assign(kHeaderSize, 0);
+  recv_buf_.assign(HeaderSize, 0);
   auto self = shared_from_this();
   asio::async_read(
-      socket_, asio::buffer(recv_buf_.data(), kHeaderSize),
+      socket_, asio::buffer(recv_buf_.data(), HeaderSize),
       asio::bind_executor(strand_, [this, self](std::error_code ec, std::size_t) {
         if (ec) {
           Close();
           return;
         }
         PacketHeader header;
-        std::memcpy(&header, recv_buf_.data(), kHeaderSize);
-        if (header.size < kHeaderSize || header.size > kMaxPacketSize) {
+        std::memcpy(&header, recv_buf_.data(), HeaderSize);
+        if (header.size < HeaderSize || header.size > MaxPacketSize) {
           LOG_WARN("invalid packet size={} from id={} — closing", header.size,
                    id_);
           Close();
           return;
         }
-        ReadBody(static_cast<uint16_t>(header.size - kHeaderSize));
+        ReadBody(static_cast<uint16_t>(header.size - HeaderSize));
       }));
 }
 
 void Session::ReadBody(uint16_t body_size) {
-  recv_buf_.resize(kHeaderSize + body_size);
+  recv_buf_.resize(HeaderSize + body_size);
   auto self = shared_from_this();
   asio::async_read(
-      socket_, asio::buffer(recv_buf_.data() + kHeaderSize, body_size),
+      socket_, asio::buffer(recv_buf_.data() + HeaderSize, body_size),
       asio::bind_executor(strand_, [this, self](std::error_code ec, std::size_t) {
         if (ec) {
           Close();

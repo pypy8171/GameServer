@@ -44,20 +44,20 @@ class Reader : public std::enable_shared_from_this<Reader> {
 
  private:
   void ReadHeader() {
-    header_.assign(kHeaderSize, 0);
+    header_.assign(HeaderSize, 0);
     auto self = shared_from_this();
-    asio::async_read(socket_, asio::buffer(header_.data(), kHeaderSize),
+    asio::async_read(socket_, asio::buffer(header_.data(), HeaderSize),
                      [this, self](std::error_code ec, std::size_t) {
                        if (ec) {
                          return;  // 연결 종료 → 읽기 루프 종료
                        }
                        PacketHeader h;
-                       std::memcpy(&h, header_.data(), kHeaderSize);
-                       if (h.size < kHeaderSize || h.size > kMaxPacketSize) {
+                       std::memcpy(&h, header_.data(), HeaderSize);
+                       if (h.size < HeaderSize || h.size > MaxPacketSize) {
                          return;
                        }
                        ReadBody(h.id,
-                                static_cast<uint16_t>(h.size - kHeaderSize));
+                                static_cast<uint16_t>(h.size - HeaderSize));
                      });
   }
 
@@ -77,7 +77,7 @@ class Reader : public std::enable_shared_from_this<Reader> {
 
   void Handle(uint16_t id, const uint8_t* body, int size) {
     switch (static_cast<PacketId>(id)) {
-      case PacketId::kChatJoinResult: {
+      case PacketId::ChatJoinResult: {
         game::proto::ChatJoinResult r;
         if (r.ParseFromArray(body, size)) {
           if (r.ok()) {
@@ -88,14 +88,14 @@ class Reader : public std::enable_shared_from_this<Reader> {
         }
         break;
       }
-      case PacketId::kChatBroadcast: {
+      case PacketId::ChatBroadcast: {
         game::proto::ChatBroadcast b;
         if (b.ParseFromArray(body, size)) {
           std::cout << b.sender() << ": " << b.text() << '\n';
         }
         break;
       }
-      case PacketId::kChatSystem: {
+      case PacketId::ChatSystem: {
         game::proto::ChatSystem s;
         if (s.ParseFromArray(body, size)) {
           std::cout << "* " << s.text() << '\n';
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
   // 신원 등록.
   game::proto::ChatJoin join;
   join.set_nickname(nickname);
-  asio::write(socket, asio::buffer(MakePacket(PacketId::kChatJoin, join)));
+  asio::write(socket, asio::buffer(MakePacket(PacketId::ChatJoin, join)));
 
   // 수신 루프를 백그라운드 스레드에서.
   auto reader = std::make_shared<Reader>(socket);
@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
     game::proto::ChatSay say;
     say.set_text(line);
     std::error_code ec;
-    asio::write(socket, asio::buffer(MakePacket(PacketId::kChatSay, say)), ec);
+    asio::write(socket, asio::buffer(MakePacket(PacketId::ChatSay, say)), ec);
     if (ec) {
       break;
     }

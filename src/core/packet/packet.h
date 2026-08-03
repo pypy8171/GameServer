@@ -30,25 +30,25 @@ static_assert(sizeof(PacketHeader) == 4, "PacketHeader must be 4 bytes");
 //   게임 확장 : 0x8000+
 // echo(1,2)는 M0 레거시로 대역 밖(방향 검증 예외).
 enum class PacketId : uint16_t {
-  kInvalid = 0,
+  Invalid = 0,
 
   // --- Echo (M0 수직 슬라이스, 레거시) ---
-  kEchoRequest = 1,
-  kEchoResponse = 2,
+  EchoRequest = 1,
+  EchoResponse = 2,
 
   // --- Chat : C->S (0x1000 대역) ---
-  kChatJoin = 0x1001,
-  kChatSay = 0x1002,
+  ChatJoin = 0x1001,
+  ChatSay = 0x1002,
 
   // --- Chat : S->C (0x2000 대역) ---
-  kChatJoinResult = 0x2001,
-  kChatBroadcast = 0x2002,
-  kChatSystem = 0x2003,
+  ChatJoinResult = 0x2001,
+  ChatBroadcast = 0x2002,
+  ChatSystem = 0x2003,
 };
 
-constexpr size_t kHeaderSize = sizeof(PacketHeader);
-constexpr size_t kMaxPacketSize = 16 * 1024;  // 코어 상한 (악성 size 방어)
-constexpr size_t kMaxChatTextBytes = 1024;    // 채팅 본문 상한
+constexpr size_t HeaderSize = sizeof(PacketHeader);
+constexpr size_t MaxPacketSize = 16 * 1024;  // 코어 상한 (악성 size 방어)
+constexpr size_t MaxChatTextBytes = 1024;    // 채팅 본문 상한
 
 // 방향 판정. 디스패처가 수신 패킷이 S->C 대역이면 거부한다(방향 위반).
 constexpr bool IsClientToServer(uint16_t id) {

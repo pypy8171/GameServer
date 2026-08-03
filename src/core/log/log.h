@@ -16,13 +16,14 @@
 //    io 스레드가 파일 I/O 로 블로킹되지 않아 저지연을 유지(4-5k CCU 목표).
 // ------------------------------------------------------------
 
+#include <memory>
 #include <string>
 
 #include <spdlog/spdlog.h>
 
 namespace game::core::log {
 
-enum class Level { kDebug, kInfo, kWarn, kError, kFatal };
+enum class Level { Debug, Info, Warn, Error, Fatal };
 
 // 비동기 로거 초기화. 스레드 시작 전에 한 번 호출한다.
 //   file_path : 로그 파일 경로(부모 디렉터리 자동 생성). 크기 기반 로테이션.
@@ -31,8 +32,18 @@ enum class Level { kDebug, kInfo, kWarn, kError, kFatal };
 void Init(const std::string& file_path, Level min_level, bool console);
 
 // 종료 시 호출 — 비동기 큐를 flush 하고 백그라운드 스레드를 정리한다.
-//   호출 후에도 LOG_* 가 안전하도록 동기 stdout 기본 로거로 복원한다.
+//   ⚠️ **전제(호출측 보장): 모든 로깅 스레드가 멈춘(quiesce) 뒤 단독 호출.**
+//     Shutdown 진행 중(기본 로거 교체 완료 전)에 다른 스레드가 LOG_* 를 호출하면
+//     spdlog 가 기본 로거를 잠시 null 로 두는 창이 있어 역참조 크래시가 날 수 있다.
+//     실제 배선은 io 워커 join → Shutdown 순서라 이 전제가 성립한다.
+//   Shutdown **완료 후**에는 동기 stdout 기본 로거로 복원되어 LOG_* 가 다시 안전하다.
 void Shutdown();
+
+namespace detail {
+// FATAL 동기 로거 스냅샷(shared_ptr 복사 → 사용 중 Shutdown 이 내려도 안전).
+//   Init 후 non-null, Shutdown 후/Init 전 null. LOG_FATAL 전용이니 직접 호출 금지.
+std::shared_ptr<spdlog::logger> FatalLogger();
+}  // namespace detail
 
 }  // namespace game::core::log
 
@@ -44,4 +55,16 @@ void Shutdown();
 #define LOG_INFO(...) SPDLOG_INFO(__VA_ARGS__)
 #define LOG_WARN(...) SPDLOG_WARN(__VA_ARGS__)
 #define LOG_ERROR(...) SPDLOG_ERROR(__VA_ARGS__)
-#define LOG_FATAL(...) SPDLOG_CRITICAL(__VA_ARGS__)
+// FATAL 은 프로세스 임종 로그다. 비동기 큐(유실 위험) 대신 '동기' 전용 로거로 흘려
+//   호출 스레드에서 즉시 디스크에 기록+flush 하고 리턴한다(리뷰 B 해소).
+//   FatalLogger() 가 null(Init 전/Shutdown 후)이면 기본 로거로 폴백한다.
+//   소스 위치(%s:%#)는 SPDLOG_LOGGER_CRITICAL 이 캡처.
+#define LOG_FATAL(...)                                                     \
+  do {                                                                     \
+    /* 충돌 없는 이름: 호출자가 넘긴 포맷 인자와 섀도잉되지 않도록. */      \
+    if (auto _game_core_fatal_lg_ = ::game::core::log::detail::FatalLogger()) { \
+      SPDLOG_LOGGER_CRITICAL(_game_core_fatal_lg_, __VA_ARGS__);           \
+    } else {                                                               \
+      SPDLOG_CRITICAL(__VA_ARGS__);                                        \
+    }                                                                      \
+  } while (0)

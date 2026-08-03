@@ -20,7 +20,7 @@ namespace {
 std::vector<uint8_t> MakeSystem(const std::string& text) {
   game::proto::ChatSystem sys;
   sys.set_text(text);
-  return MakePacket(PacketId::kChatSystem, sys);
+  return MakePacket(PacketId::ChatSystem, sys);
 }
 
 }  // namespace
@@ -28,7 +28,7 @@ std::vector<uint8_t> MakeSystem(const std::string& text) {
 void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
   // ---- ChatJoin (C->S): 신원 1회 등록 ----
   dispatcher.Register(
-      PacketId::kChatJoin,
+      PacketId::ChatJoin,
       [&registry](const SessionPtr& s, const uint8_t* body, uint16_t size) {
         game::proto::ChatJoin msg;
         if (!msg.ParseFromArray(body, size)) {
@@ -36,20 +36,20 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
         }
         game::proto::ChatJoinResult res;
         const std::string& nick = msg.nickname();
-        if (nick.empty() || nick.size() > kMaxChatTextBytes) {
+        if (nick.empty() || nick.size() > MaxChatTextBytes) {
           res.set_ok(false);
           res.set_reason("invalid nickname");
-          s->Send(MakePacket(PacketId::kChatJoinResult, res));
+          s->Send(MakePacket(PacketId::ChatJoinResult, res));
           return;
         }
         if (!s->SetIdentity(nick)) {  // 이미 join 상태
           res.set_ok(false);
           res.set_reason("already joined");
-          s->Send(MakePacket(PacketId::kChatJoinResult, res));
+          s->Send(MakePacket(PacketId::ChatJoinResult, res));
           return;
         }
         res.set_ok(true);
-        s->Send(MakePacket(PacketId::kChatJoinResult, res));
+        s->Send(MakePacket(PacketId::ChatJoinResult, res));
         LOG_INFO("[chat] {} 님 입장 (id={})", nick, s->id());
         // 남은 세션에게 입장 알림(자기 자신 제외).
         registry.Broadcast(MakeSystem(nick + " 님이 입장했습니다."), s->id());
@@ -57,7 +57,7 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
 
   // ---- ChatSay (C->S): 발화 릴레이 ----
   dispatcher.Register(
-      PacketId::kChatSay,
+      PacketId::ChatSay,
       [&registry](const SessionPtr& s, const uint8_t* body, uint16_t size) {
         if (!s->joined()) {
           return;  // 신원 없는 발화는 무시
@@ -66,7 +66,7 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
         if (!msg.ParseFromArray(body, size)) {
           return;
         }
-        if (msg.text().empty() || msg.text().size() > kMaxChatTextBytes) {
+        if (msg.text().empty() || msg.text().size() > MaxChatTextBytes) {
           return;
         }
         game::proto::ChatBroadcast out;
@@ -75,7 +75,7 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
         // 어떤 유저가 어떤 내용을 보냈는지 기록(내용은 인자로 — 포맷 오해석 방지).
         LOG_INFO("[chat] {}: {}", s->nickname(), msg.text());
         // 전원에게(발신자 포함) — 발신자도 자기 발화 왕복을 확인.
-        registry.Broadcast(MakePacket(PacketId::kChatBroadcast, out));
+        registry.Broadcast(MakePacket(PacketId::ChatBroadcast, out));
       });
 }
 

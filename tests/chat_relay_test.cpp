@@ -22,7 +22,7 @@ using asio::ip::tcp;
 
 namespace {
 
-constexpr uint16_t kTestPort = 39217;
+constexpr uint16_t TestPort = 39217;
 
 struct Frame {
   uint16_t id;
@@ -31,11 +31,11 @@ struct Frame {
 
 // 소켓에서 한 프레임([헤더+바디])을 동기적으로 읽는다.
 Frame ReadFrame(tcp::socket& s) {
-  std::vector<uint8_t> hdr(kHeaderSize);
-  asio::read(s, asio::buffer(hdr.data(), kHeaderSize));
+  std::vector<uint8_t> hdr(HeaderSize);
+  asio::read(s, asio::buffer(hdr.data(), HeaderSize));
   PacketHeader h;
-  std::memcpy(&h, hdr.data(), kHeaderSize);
-  std::vector<uint8_t> body(h.size - kHeaderSize);
+  std::memcpy(&h, hdr.data(), HeaderSize);
+  std::vector<uint8_t> body(h.size - HeaderSize);
   if (!body.empty()) {
     asio::read(s, asio::buffer(body.data(), body.size()));
   }
@@ -45,14 +45,14 @@ Frame ReadFrame(tcp::socket& s) {
 tcp::socket Connect(asio::io_context& io) {
   tcp::socket sock(io);
   tcp::resolver resolver(io);
-  asio::connect(sock, resolver.resolve("127.0.0.1", std::to_string(kTestPort)));
+  asio::connect(sock, resolver.resolve("127.0.0.1", std::to_string(TestPort)));
   return sock;
 }
 
 void SendJoin(tcp::socket& s, const std::string& nick) {
   game::proto::ChatJoin join;
   join.set_nickname(nick);
-  asio::write(s, asio::buffer(MakePacket(PacketId::kChatJoin, join)));
+  asio::write(s, asio::buffer(MakePacket(PacketId::ChatJoin, join)));
 }
 
 }  // namespace
@@ -63,7 +63,7 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   SessionRegistry registry;
   Dispatcher dispatcher;
   game::chat::RegisterChatHandlers(dispatcher, registry);
-  Server server(server_io, kTestPort, dispatcher, registry);
+  Server server(server_io, TestPort, dispatcher, registry);
   server.set_on_disconnect(game::chat::MakeDisconnectHook(registry));
   server.Start();
   std::thread server_thread([&server_io] { server_io.run(); });
@@ -75,7 +75,7 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   tcp::socket alice = Connect(cio);
   SendJoin(alice, "alice");
   Frame f = ReadFrame(alice);
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::kChatJoinResult));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResult));
   {
     game::proto::ChatJoinResult r;
     ASSERT_TRUE(r.ParseFromArray(f.body.data(), static_cast<int>(f.body.size())));
@@ -86,10 +86,10 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   tcp::socket bob = Connect(cio);
   SendJoin(bob, "bob");
   f = ReadFrame(bob);
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::kChatJoinResult));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResult));
 
   f = ReadFrame(alice);  // alice: "bob 입장"
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::kChatSystem));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatSystem));
   {
     game::proto::ChatSystem sys;
     ASSERT_TRUE(sys.ParseFromArray(f.body.data(),
@@ -100,11 +100,11 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   // alice 발화 → alice·bob 모두 ChatBroadcast(sender=alice) 수신.
   game::proto::ChatSay say;
   say.set_text("hello");
-  asio::write(alice, asio::buffer(MakePacket(PacketId::kChatSay, say)));
+  asio::write(alice, asio::buffer(MakePacket(PacketId::ChatSay, say)));
 
   for (tcp::socket* who : {&alice, &bob}) {
     Frame b = ReadFrame(*who);
-    EXPECT_EQ(b.id, static_cast<uint16_t>(PacketId::kChatBroadcast));
+    EXPECT_EQ(b.id, static_cast<uint16_t>(PacketId::ChatBroadcast));
     game::proto::ChatBroadcast bc;
     ASSERT_TRUE(bc.ParseFromArray(b.body.data(), static_cast<int>(b.body.size())));
     EXPECT_EQ(bc.sender(), "alice");  // 발신자는 서버가 세션에서 채움

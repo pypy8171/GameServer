@@ -25,7 +25,7 @@ int main(int argc, char** argv) {
 
   Dispatcher dispatcher;
   dispatcher.Register(
-      PacketId::kEchoRequest,
+      PacketId::EchoRequest,
       [](const SessionPtr& session, const uint8_t* body, uint16_t size) {
         game::proto::EchoRequest req;
         if (!req.ParseFromArray(body, size)) {
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
         }
         game::proto::EchoResponse res;
         res.set_message(req.message());
-        session->Send(MakePacket(PacketId::kEchoResponse, res));
+        session->Send(MakePacket(PacketId::EchoResponse, res));
       });
 
   // ---- 서버 기동 ----
