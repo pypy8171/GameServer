@@ -6,6 +6,7 @@
   "dependencies": [
     "asio",
     "protobuf",
-    "gtest"
+    "gtest",
+    "spdlog"
   ]
 }

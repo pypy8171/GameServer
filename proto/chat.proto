@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package game.proto;
+
+// ============================================================
+//  채팅 릴레이 (M0.5) 메시지
+//  패킷 ID(라우팅 키)는 src/core/packet/packet.h 의 PacketId enum 에서 관리.
+//  방향 규율:
+//    C->S : ChatJoin, ChatSay        (0x1000 대역)
+//    S->C : ChatJoinResult, ChatBroadcast, ChatSystem (0x2000 대역)
+//  스푸핑 표면 제거: 클라 송신 메시지에는 발신자 필드를 두지 않는다.
+//  발신자(sender)는 서버가 세션의 신원에서 채운다.
+// ============================================================
+
+// --- C->S ---
+message ChatJoin {
+  string nickname = 1;  // 접속 시 1회 신원 등록
+}
+
+message ChatSay {
+  string text = 1;      // 발신자 없음 — 서버가 세션에서 채움
+}
+
+// --- S->C ---
+message ChatJoinResult {
+  bool   ok     = 1;
+  string reason = 2;    // ok=false 일 때 사유
+}
+
+message ChatBroadcast {
+  string sender = 1;    // 서버가 세션 신원에서 채운 값
+  string text   = 2;
+}
+
+message ChatSystem {
+  string text = 1;      // "X 님이 입장/퇴장" 등 시스템 알림
+}

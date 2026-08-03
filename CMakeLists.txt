@@ -10,13 +10,22 @@ if(MSVC)
   add_compile_definitions(_WIN32_WINNT=0x0A00 NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
 
+# 로그 레벨 컴파일타임 컷오프: Debug 는 DEBUG 부터, Release 는 INFO 부터 컴파일.
+#   → Release 빌드에서 LOG_DEBUG(...) 는 코드에서 완전히 사라진다(비용 0, 문자열도 미포함).
+add_compile_definitions(
+  $<$<CONFIG:Debug>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG>
+  $<$<NOT:$<CONFIG:Debug>>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>
+)
+
 # ---- 의존성 (vcpkg manifest) ----
 find_package(asio CONFIG REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
 
 # ---- 서브프로젝트 ----
-add_subdirectory(proto)   # game_proto : .proto -> C++ 생성
-add_subdirectory(src)     # game_core + echo_server
+add_subdirectory(proto)     # game_proto : .proto -> C++ 생성
+add_subdirectory(src)       # game_core + echo_server + chat_server
+add_subdirectory(examples)  # chat_client (검증 하네스)
 
 enable_testing()
-# add_subdirectory(tests) # 이후 마일스톤에서 gtest 연결
+add_subdirectory(tests)     # gtest: core_tests

@@ -9,6 +9,7 @@
 #include "core/dispatch/dispatcher.h"
 #include "core/net/server.h"
 #include "core/net/session.h"
+#include "core/net/session_registry.h"
 #include "core/packet/packet.h"
 #include "packet.pb.h"
 
@@ -38,7 +39,8 @@ int main(int argc, char** argv) {
 
   // ---- 서버 기동 ----
   asio::io_context io;
-  Server server(io, port, dispatcher);
+  SessionRegistry registry;
+  Server server(io, port, dispatcher, registry);
   server.Start();
 
   // ---- graceful shutdown ----
