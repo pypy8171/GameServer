@@ -11,6 +11,8 @@ add_executable(core_tests
   password_hash_test.cpp
   account_repository_test.cpp
   login_handler_test.cpp
+  world_test.cpp
+  game_entry_test.cpp
 )
 target_link_libraries(core_tests PRIVATE
   game_core game_proto chat_logic game_logic

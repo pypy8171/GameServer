@@ -25,6 +25,7 @@
 #include "core/net/session_registry.h"
 #include "game_logic/account/in_memory_account_repository.h"
 #include "game_logic/login/login_handlers.h"
+#include "game_logic/world/world.h"
 
 using namespace game::core;
 
@@ -73,6 +74,11 @@ int main(int argc, char** argv) {
   //   ⚠️ 자격증명은 소스/커밋에 절대 두지 않는다: 데모 계정은 로컬 전용(비추적)
   //   game_server.cfg 의 demo_account/demo_password 키에서만 프로비저닝한다.
   //   키가 없으면 계정 0개 → 모든 로그인 거부(핸드셰이크 경로 자체는 살아있음).
+  // io_context 를 먼저 선언한다: World 의 strand 와 acceptor 가 이 실행기를 쓴다.
+  //   선언 순서 = 파괴 역순 → io 가 가장 늦게 파괴돼 World·Server 의 strand/소켓
+  //   실행기 수명을 덮는다.
+  asio::io_context io;
+
   game::logic::InMemoryAccountRepository accounts;
   const std::string demo_account = cfg.GetString("demo_account", "");
   const std::string demo_password = cfg.GetString("demo_password", "");
@@ -88,18 +94,29 @@ int main(int argc, char** argv) {
         "game_server.cfg 에 demo_account/demo_password 설정 시 활성화.");
   }
 
+  // 게임 월드(엔티티 소유자). accounts 와 함께 dispatcher/server 보다 먼저 선언해
+  //   더 오래 살게 한다 — 아래 콜백들이 world 를 참조 캡처하기 때문(수명 역전 시 UAF).
+  game::logic::World world(io);
+
   SessionRegistry registry;
   Dispatcher dispatcher;
-  game::logic::RegisterLoginHandlers(dispatcher, accounts);  // [ADR-P/J]
-  // TODO(MG-⑥+): RegisterGameHandlers(dispatcher, world, ...) 로 월드입장·이동을 꽂는다.
-
-  asio::io_context io;
+  // 로그인 성공 → 월드 입장 배선(ADR-N/O). 인증 성공 훅에서 world strand 로 진입해
+  //   엔티티를 만들고 WorldEnteredNotify(스폰)를 보낸다. player_id 는 로그인이 발급.
+  game::logic::RegisterLoginHandlers(
+      dispatcher, accounts,
+      [&world](const SessionPtr& s, game::logic::PlayerId pid) {
+        world.PostEnter(s, pid);
+      });  // [ADR-P/J/N]
   // 바인드/리슨 실패(포트 점유 등)는 Server 생성자에서 예외로 던진다. worker
   //   try/catch 진입 이전이라 감싸지 않으면 로그 없이 terminate → FATAL 로 원인을
   //   남기고 큐를 flush 한 뒤 정상 종료 코드로 나간다(chat_server 와 동일 규율).
   std::optional<Server> server;
   try {
     server.emplace(io, port, dispatcher, registry);
+    // 세션 종료 시 월드에서 퇴장(엔티티 제거). world strand 로 진입해 처리하며,
+    //   세션 객체가 이미 파괴됐을 수 있으므로 SessionId 값만 넘긴다.
+    server->set_on_disconnect(
+        [&world](const SessionPtr& s) { world.PostLeave(s->id()); });
     server->Start();
   } catch (const std::exception& e) {
     LOG_FATAL("game_server bind/start failed on port {}: {}", port, e.what());

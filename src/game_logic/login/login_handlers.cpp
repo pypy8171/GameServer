@@ -38,13 +38,15 @@ LoginOutcome EvaluateLogin(const IAccountRepository& repo,
 }
 
 void RegisterLoginHandlers(Dispatcher& dispatcher,
-                           const IAccountRepository& repo) {
+                           const IAccountRepository& repo,
+                           OnAuthenticated on_authenticated) {
   // LoginRequest 는 신원을 확립하는 입장 패킷 → 미인증 게이트를 통과해야 한다. [ADR-J]
   dispatcher.AllowUnauthenticated(PacketId::LoginRequest);
 
   dispatcher.RegisterTyped<LoginRequest>(
-      PacketId::LoginRequest, [&repo](const SessionPtr& s,
-                                      const LoginRequest& req) {
+      PacketId::LoginRequest,
+      [&repo, on_authenticated = std::move(on_authenticated)](
+          const SessionPtr& s, const LoginRequest& req) {
         // 이미 인증된 세션의 재로그인은 신원 재설정 없이 거부(1회성 유지).
         if (s->authenticated()) {
           LoginResponse res;
@@ -65,6 +67,11 @@ void RegisterLoginHandlers(Dispatcher& dispatcher,
                    out.response.reason());
         }
         s->Send(MakePacket(PacketId::LoginResponse, out.response));
+        // 인증 성공 후속 훅(월드 입장 등)은 LoginResponse 송신 뒤 호출한다 →
+        //   클라는 LoginResponse(ok, player_id) 다음에 WorldEnteredNotify 를 받는다.
+        if (out.authenticate && on_authenticated) {
+          on_authenticated(s, out.response.player_id());
+        }
       });
 }
 

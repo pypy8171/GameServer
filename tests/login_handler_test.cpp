@@ -100,3 +100,45 @@ TEST(RegisterLoginHandlers, InvalidLoginLeavesSessionUnauthenticated) {
 
   EXPECT_FALSE(s->authenticated());
 }
+
+// ---- 인증 성공 후속 훅(OnAuthenticated) — 월드 입장 배선 seam ----
+
+// 유효 로그인 → 훅이 정확히 1회, 발급된 player_id 와 함께 호출된다.
+TEST(RegisterLoginHandlers, OnAuthenticatedFiresOnSuccessWithPlayerId) {
+  asio::io_context io;
+  SessionRegistry reg;
+  Dispatcher d;
+  const auto repo = MakeRepo();
+
+  int calls = 0;
+  PlayerId seen_pid = 0;
+  RegisterLoginHandlers(d, repo, [&](const SessionPtr&, PlayerId pid) {
+    ++calls;
+    seen_pid = pid;
+  });
+
+  auto s = MakeDummySession(io, d, reg);
+  const auto pkt = MakePacket(PacketId::LoginRequest, MakeReq("alice", "s3cret"));
+  d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
+
+  EXPECT_EQ(calls, 1);
+  EXPECT_EQ(seen_pid, 42u);
+}
+
+// 실패 로그인 → 훅은 호출되지 않는다(인증되지 않은 세션은 월드에 입장 안 함).
+TEST(RegisterLoginHandlers, OnAuthenticatedDoesNotFireOnFailure) {
+  asio::io_context io;
+  SessionRegistry reg;
+  Dispatcher d;
+  const auto repo = MakeRepo();
+
+  int calls = 0;
+  RegisterLoginHandlers(d, repo,
+                        [&](const SessionPtr&, PlayerId) { ++calls; });
+
+  auto s = MakeDummySession(io, d, reg);
+  const auto pkt = MakePacket(PacketId::LoginRequest, MakeReq("alice", "nope"));
+  d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
+
+  EXPECT_EQ(calls, 0);
+}
