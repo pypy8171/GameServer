@@ -33,12 +33,12 @@ void Session::Start() {
   ReadHeader();
 }
 
-bool Session::SetIdentity(std::string nickname) {
-  if (joined_) {
+bool Session::Authenticate(std::string principal) {
+  if (authenticated_) {
     return false;
   }
-  nickname_ = std::move(nickname);
-  joined_ = true;
+  principal_ = std::move(principal);
+  authenticated_ = true;
   return true;
 }
 

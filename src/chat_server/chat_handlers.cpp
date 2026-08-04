@@ -40,7 +40,7 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
           s->Send(MakePacket(PacketId::ChatJoinResult, res));
           return;
         }
-        if (!s->SetIdentity(nick)) {  // 이미 join 상태
+        if (!s->Authenticate(nick)) {  // 이미 신원 확립됨(중복 join)
           res.set_ok(false);
           res.set_reason("already joined");
           s->Send(MakePacket(PacketId::ChatJoinResult, res));
@@ -57,17 +57,17 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
   dispatcher.RegisterTyped<ChatSay>(
       PacketId::ChatSay,
       [&registry](const SessionPtr& s, const ChatSay& msg) {
-        if (!s->joined()) {
+        if (!s->authenticated()) {
           return;  // 신원 없는 발화는 무시
         }
         if (msg.text().empty() || msg.text().size() > MaxChatTextBytes) {
           return;
         }
         ChatBroadcast out;
-        out.set_sender(s->nickname());  // 발신자는 세션 신원에서(스푸핑 차단)
+        out.set_sender(s->principal());  // 발신자는 세션 신원에서(스푸핑 차단)
         out.set_text(msg.text());
         // 어떤 유저가 어떤 내용을 보냈는지 기록(내용은 인자로 — 포맷 오해석 방지).
-        LOG_INFO("[chat] {}: {}", s->nickname(), msg.text());
+        LOG_INFO("[chat] {}: {}", s->principal(), msg.text());
         // 전원에게(발신자 포함) — 발신자도 자기 발화 왕복을 확인.
         registry.Broadcast(MakePacket(PacketId::ChatBroadcast, out));
       });
@@ -76,9 +76,9 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
 std::function<void(const SessionPtr&)> MakeDisconnectHook(
     SessionRegistry& registry) {
   return [&registry](const SessionPtr& s) {
-    if (s->joined()) {
-      LOG_INFO("[chat] {} 님 퇴장 (id={})", s->nickname(), s->id());
-      registry.Broadcast(MakeSystem(s->nickname() + " 님이 퇴장했습니다."));
+    if (s->authenticated()) {
+      LOG_INFO("[chat] {} 님 퇴장 (id={})", s->principal(), s->id());
+      registry.Broadcast(MakeSystem(s->principal() + " 님이 퇴장했습니다."));
     }
   };
 }

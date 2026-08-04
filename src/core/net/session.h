@@ -38,11 +38,14 @@ class Session : public std::enable_shared_from_this<Session> {
   SessionId id() const { return id_; }
   asio::ip::tcp::endpoint remote() const { return remote_; }
 
-  // --- 신원(채팅 핸들러가 세팅) — strand 안에서만 접근 ---
-  bool joined() const { return joined_; }
-  const std::string& nickname() const { return nickname_; }
-  // 최초 1회만 성공. 이미 join 됐으면 false.
-  bool SetIdentity(std::string nickname);
+  // --- 세션 신원(인증) — strand 안에서만 접근 ---
+  // 코어는 "신원이 확립됐는가"(authenticated_)와 "불투명 신원 문자열"(principal_)
+  // 만 안다. principal 의 의미는 앱/게임이 정하며 코어는 해석하지 않는다
+  //   (chat=닉네임, game=계정 id). 게임 콘텐츠의 코어 누수를 막는 경계. [ADR-L]
+  bool authenticated() const { return authenticated_; }
+  const std::string& principal() const { return principal_; }
+  // 세션 신원을 최초 1회 확립(입장/로그인 게이트 통과). 이미 확립됐으면 false.
+  bool Authenticate(std::string principal);
 
   // 종료 시 1회 호출되는 앱 훅(예: "X 퇴장" 브로드캐스트). 등록 해제 직후 실행.
   void set_on_disconnect(std::function<void(const SessionPtr&)> hook) {
@@ -67,8 +70,8 @@ class Session : public std::enable_shared_from_this<Session> {
   bool writing_ = false;
   bool closed_ = false;                            // Close 멱등 가드 (strand 안)
 
-  std::string nickname_;                           // 신원 (strand 안)
-  bool joined_ = false;
+  std::string principal_;      // 불투명 신원 (strand 안): chat=닉네임, game=계정id
+  bool authenticated_ = false;
   std::function<void(const SessionPtr&)> on_disconnect_;
 };
 

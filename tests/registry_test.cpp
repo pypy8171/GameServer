@@ -69,10 +69,10 @@ TEST(Session, IdsAreUniqueAndIdentitySetOnce) {
   auto b = MakeDummySession(io, d, reg);
   EXPECT_NE(a->id(), b->id());
 
-  EXPECT_FALSE(a->joined());
-  EXPECT_TRUE(a->SetIdentity("alice"));
-  EXPECT_TRUE(a->joined());
-  EXPECT_EQ(a->nickname(), "alice");
-  EXPECT_FALSE(a->SetIdentity("bob"));  // 두 번째 신원 설정은 거부
-  EXPECT_EQ(a->nickname(), "alice");
+  EXPECT_FALSE(a->authenticated());
+  EXPECT_TRUE(a->Authenticate("alice"));  // 최초 신원 확립
+  EXPECT_TRUE(a->authenticated());
+  EXPECT_EQ(a->principal(), "alice");
+  EXPECT_FALSE(a->Authenticate("bob"));   // 두 번째 신원 설정은 거부(1회성)
+  EXPECT_EQ(a->principal(), "alice");     // 최초 신원 유지
 }
