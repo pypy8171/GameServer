@@ -7,7 +7,7 @@ package game.proto;
 //  패킷 ID(라우팅 키)는 src/core/packet/packet.h 의 PacketId enum 에서 관리.
 //  방향 규율:
 //    C->S : LoginRequest   (0x1010, 표준 대역 — preauth allowlist 대상)
-//    S->C : LoginResult    (0x2010)
+//    S->C : LoginResponse  (0x2010)
 //  신뢰 경계: 미인증 세션은 LoginRequest 외 패킷을 역직렬화조차 못 한다
 //  (디스패치 게이트, ADR-J). 인증 성공 시 서버가 세션에 신원을 귀속시킨다.
 // ============================================================
@@ -19,7 +19,7 @@ message LoginRequest {
 }
 
 // --- S->C ---
-message LoginResult {
+message LoginResponse {
   bool ok = 1;
   string reason = 2;      // ok=false 일 때 실패 사유
   uint64 player_id = 3;   // 성공 시 서버가 부여한 플레이어 식별자(엔티티 키잉)

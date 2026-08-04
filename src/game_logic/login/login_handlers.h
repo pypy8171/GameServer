@@ -14,11 +14,11 @@ class IAccountRepository;
 
 // 로그인 결정의 순수 결과(세션·IO 무관 — 테스트 대상).
 //   authenticate: 세션에 신원을 귀속시킬지. true 면 principal 이 유효.
-//   response: 클라이언트로 돌려줄 LoginResult.
+//   response: 클라이언트로 돌려줄 LoginResponse.
 struct LoginOutcome {
   bool authenticate = false;
   std::string principal;  // authenticate=true 일 때의 신원(계정 id)
-  game::proto::LoginResult response;
+  game::proto::LoginResponse response;
 };
 
 // 순수 결정 함수: 저장소 + 요청 → 결과. 세션도 소켓도 건드리지 않는다.

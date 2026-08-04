@@ -78,8 +78,8 @@ class Reader : public std::enable_shared_from_this<Reader> {
 
   void Handle(uint16_t id, const uint8_t* body, int size) {
     switch (static_cast<PacketId>(id)) {
-      case PacketId::ChatJoinResult: {
-        ChatJoinResult r;
+      case PacketId::ChatJoinResponse: {
+        ChatJoinResponse r;
         if (r.ParseFromArray(body, size)) {
           if (r.ok()) {
             std::cout << "* 입장 완료. 메시지를 입력하세요.\n";
@@ -89,15 +89,15 @@ class Reader : public std::enable_shared_from_this<Reader> {
         }
         break;
       }
-      case PacketId::ChatBroadcast: {
-        ChatBroadcast b;
+      case PacketId::ChatNotify: {
+        ChatNotify b;
         if (b.ParseFromArray(body, size)) {
           std::cout << b.sender() << ": " << b.text() << '\n';
         }
         break;
       }
-      case PacketId::ChatNotice: {
-        ChatNotice s;
+      case PacketId::SystemNotify: {
+        SystemNotify s;
         if (s.ParseFromArray(body, size)) {
           std::cout << "* " << s.text() << '\n';
         }
@@ -137,9 +137,9 @@ int main(int argc, char** argv) {
   }
 
   // 신원 등록.
-  ChatJoin join;
+  ChatJoinRequest join;
   join.set_nickname(nickname);
-  asio::write(socket, asio::buffer(MakePacket(PacketId::ChatJoin, join)));
+  asio::write(socket, asio::buffer(MakePacket(PacketId::ChatJoinRequest, join)));
 
   // 수신 루프를 백그라운드 스레드에서.
   auto reader = std::make_shared<Reader>(socket);
@@ -152,10 +152,10 @@ int main(int argc, char** argv) {
     if (line.empty()) {
       continue;
     }
-    ChatSay say;
+    ChatSayRequest say;
     say.set_text(line);
     std::error_code ec;
-    asio::write(socket, asio::buffer(MakePacket(PacketId::ChatSay, say)), ec);
+    asio::write(socket, asio::buffer(MakePacket(PacketId::ChatSayRequest, say)), ec);
     if (ec) {
       break;
     }

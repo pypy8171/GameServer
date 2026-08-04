@@ -50,13 +50,13 @@ TEST(PacketHeader, SerializesLittleEndianOnWire) {
 }
 
 TEST(Packet, DirectionBandsClassifyChatIds) {
-  EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatJoin)));
-  EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatSay)));
-  EXPECT_FALSE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatBroadcast)));
+  EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatJoinRequest)));
+  EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatSayRequest)));
+  EXPECT_FALSE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatNotify)));
 
-  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::ChatBroadcast)));
-  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::ChatNotice)));
-  EXPECT_FALSE(IsServerToClient(static_cast<uint16_t>(PacketId::ChatJoin)));
+  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::ChatNotify)));
+  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::SystemNotify)));
+  EXPECT_FALSE(IsServerToClient(static_cast<uint16_t>(PacketId::ChatJoinRequest)));
 }
 
 // 로그인은 표준 방향대역(0x1xxx/0x2xxx), 게임 콘텐츠는 확장대역(0x8xxx C->S /
@@ -64,19 +64,19 @@ TEST(Packet, DirectionBandsClassifyChatIds) {
 TEST(Packet, DirectionBandsClassifyLoginAndGameIds) {
   // 로그인(인프라 성격) — 표준 대역
   EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::LoginRequest)));
-  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::LoginResult)));
+  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::LoginResponse)));
 
   // 게임 콘텐츠 — 0x8000+ 확장 대역
-  EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::Move)));
-  EXPECT_FALSE(IsServerToClient(static_cast<uint16_t>(PacketId::Move)));
+  EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::MoveRequest)));
+  EXPECT_FALSE(IsServerToClient(static_cast<uint16_t>(PacketId::MoveRequest)));
 
-  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::WorldEntered)));
+  EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::WorldEnteredNotify)));
   EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::MoveNotify)));
   EXPECT_FALSE(IsClientToServer(static_cast<uint16_t>(PacketId::MoveNotify)));
 }
 
 TEST(Packet, RejectsOversizePayload) {
-  ChatSay say;
+  ChatSayRequest say;
   say.set_text(std::string(MaxPacketSize + 100, 'x'));
-  EXPECT_THROW(MakePacket(PacketId::ChatSay, say), std::length_error);
+  EXPECT_THROW(MakePacket(PacketId::ChatSayRequest, say), std::length_error);
 }

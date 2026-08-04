@@ -12,7 +12,7 @@
 namespace game::core {
 
 namespace {
-// "ChatSay(id=0x1002)" 형태로 포맷 — 로그에서 패킷을 한눈에 식별.
+// "ChatSayRequest(id=0x1002)" 형태로 포맷 — 로그에서 패킷을 한눈에 식별.
 std::string DescribePacket(uint16_t id) {
   std::ostringstream os;
   os << PacketIdName(id) << "(id=0x" << std::hex << std::uppercase

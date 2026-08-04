@@ -52,9 +52,9 @@ tcp::socket Connect(asio::io_context& io) {
 }
 
 void SendJoin(tcp::socket& s, const std::string& nick) {
-  ChatJoin join;
+  ChatJoinRequest join;
   join.set_nickname(nick);
-  asio::write(s, asio::buffer(MakePacket(PacketId::ChatJoin, join)));
+  asio::write(s, asio::buffer(MakePacket(PacketId::ChatJoinRequest, join)));
 }
 
 }  // namespace
@@ -77,9 +77,9 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   tcp::socket alice = Connect(cio);
   SendJoin(alice, "alice");
   Frame f = ReadFrame(alice);
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResult));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResponse));
   {
-    ChatJoinResult r;
+    ChatJoinResponse r;
     ASSERT_TRUE(r.ParseFromArray(f.body.data(), static_cast<int>(f.body.size())));
     EXPECT_TRUE(r.ok());
   }
@@ -88,26 +88,26 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   tcp::socket bob = Connect(cio);
   SendJoin(bob, "bob");
   f = ReadFrame(bob);
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResult));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResponse));
 
   f = ReadFrame(alice);  // alice: "bob 입장"
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatNotice));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::SystemNotify));
   {
-    ChatNotice sys;
+    SystemNotify sys;
     ASSERT_TRUE(sys.ParseFromArray(f.body.data(),
                                    static_cast<int>(f.body.size())));
     EXPECT_NE(sys.text().find("bob"), std::string::npos);
   }
 
-  // alice 발화 → alice·bob 모두 ChatBroadcast(sender=alice) 수신.
-  ChatSay say;
+  // alice 발화 → alice·bob 모두 ChatNotify(sender=alice) 수신.
+  ChatSayRequest say;
   say.set_text("hello");
-  asio::write(alice, asio::buffer(MakePacket(PacketId::ChatSay, say)));
+  asio::write(alice, asio::buffer(MakePacket(PacketId::ChatSayRequest, say)));
 
   for (tcp::socket* who : {&alice, &bob}) {
     Frame b = ReadFrame(*who);
-    EXPECT_EQ(b.id, static_cast<uint16_t>(PacketId::ChatBroadcast));
-    ChatBroadcast bc;
+    EXPECT_EQ(b.id, static_cast<uint16_t>(PacketId::ChatNotify));
+    ChatNotify bc;
     ASSERT_TRUE(bc.ParseFromArray(b.body.data(), static_cast<int>(b.body.size())));
     EXPECT_EQ(bc.sender(), "alice");  // 발신자는 서버가 세션에서 채움
     EXPECT_EQ(bc.text(), "hello");

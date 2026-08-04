@@ -11,7 +11,7 @@ class Session;
 
 namespace game::chat {
 
-// 채팅 릴레이 핸들러(ChatJoin/ChatSay)를 디스패처에 등록한다.
+// 채팅 릴레이 핸들러(ChatJoinRequest/ChatSayRequest)를 디스패처에 등록한다.
 // 데모/하네스 로직 — 게임 무관 코어(src/core) 밖에 격리한다.
 // (namespace game::chat 안이라 core:: 는 game::core:: 로 해석된다.)
 void RegisterChatHandlers(core::Dispatcher& dispatcher,

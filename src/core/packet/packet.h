@@ -28,8 +28,8 @@ static_assert(sizeof(PacketHeader) == 4, "PacketHeader must be 4 bytes");
 //   C->S : [0x1000, 0x2000)         (인프라/세션 패킷: chat, login)
 //   S->C : [0x2000, 0x3000)
 //   게임 확장 0x8000+ 의 방향 하위관례(첫 게임패킷 전 확정):
-//     게임 C->S : [0x8000, 0x9000)  (예: Move)
-//     게임 S->C : [0x9000, 0xA000)  (예: WorldEntered, MoveNotify)
+//     게임 C->S : [0x8000, 0x9000)  (예: MoveRequest)
+//     게임 S->C : [0x9000, 0xA000)  (예: WorldEnteredNotify, MoveNotify)
 // echo(1,2)는 M0 레거시로 대역 밖(방향 검증 예외).
 enum class PacketId : uint16_t {
   Invalid = 0,
@@ -39,24 +39,24 @@ enum class PacketId : uint16_t {
   EchoResponse = 2,
 
   // --- Chat : C->S (0x1000 대역) ---
-  ChatJoin = 0x1001,
-  ChatSay = 0x1002,
+  ChatJoinRequest = 0x1001,
+  ChatSayRequest = 0x1002,
 
   // --- Chat : S->C (0x2000 대역) ---
-  ChatJoinResult = 0x2001,
-  ChatBroadcast = 0x2002,
-  ChatNotice = 0x2003,
+  ChatJoinResponse = 0x2001,
+  ChatNotify = 0x2002,
+  SystemNotify = 0x2003,
 
   // --- Login : 인게임 핸드셰이크 (인프라 성격, 표준 방향대역) ---
   //   미인증 세션에도 허용되는 preauth 패킷(디스패치 게이트의 allowlist 대상).
-  LoginRequest = 0x1010,  // C->S : 계정/비번 제출
-  LoginResult = 0x2010,   // S->C : 인증 결과(+player_id)
+  LoginRequest = 0x1010,   // C->S : 계정/비번 제출
+  LoginResponse = 0x2010,  // S->C : 인증 결과(+player_id)
 
   // --- Game : 게임 콘텐츠 (0x8000+ 확장 대역) ---
   //   방향 하위관례: C->S [0x8000,0x9000), S->C [0x9000,0xA000).
-  Move = 0x8001,          // C->S : 이동 요청
-  WorldEntered = 0x9001,  // S->C : 로그인 성공→월드입장 첫 스냅샷(내 스폰)
-  MoveNotify = 0x9002,    // S->C : 이동 결과 브로드캐스트
+  MoveRequest = 0x8001,         // C->S : 이동 요청
+  WorldEnteredNotify = 0x9001,  // S->C : 로그인 성공→월드입장 첫 스냅샷(내 스폰)
+  MoveNotify = 0x9002,          // S->C : 이동 결과 브로드캐스트
 };
 
 constexpr size_t HeaderSize = sizeof(PacketHeader);

@@ -30,15 +30,15 @@ SessionPtr MakeDummySession(asio::io_context& io, Dispatcher& d,
 TEST(DispatcherTyped, DispatchesParsedMessageToTypedHandler) {
   Dispatcher d;
   std::string got;
-  d.RegisterTyped<ChatSay>(
-      PacketId::ChatSay,
-      [&got](const SessionPtr&, const ChatSay& m) {
+  d.RegisterTyped<ChatSayRequest>(
+      PacketId::ChatSayRequest,
+      [&got](const SessionPtr&, const ChatSayRequest& m) {
         got = m.text();
       });
 
-  ChatSay say;
+  ChatSayRequest say;
   say.set_text("hi");
-  const auto pkt = MakePacket(PacketId::ChatSay, say);
+  const auto pkt = MakePacket(PacketId::ChatSayRequest, say);
   d.Dispatch(SessionPtr{}, pkt.data(), static_cast<uint16_t>(pkt.size()));
 
   EXPECT_EQ(got, "hi");
@@ -48,17 +48,17 @@ TEST(DispatcherTyped, DispatchesParsedMessageToTypedHandler) {
 TEST(DispatcherTyped, DropsMalformedBodyWithoutCallingHandler) {
   Dispatcher d;
   bool called = false;
-  d.RegisterTyped<ChatJoin>(
-      PacketId::ChatJoin,
-      [&called](const SessionPtr&, const ChatJoin&) {
+  d.RegisterTyped<ChatJoinRequest>(
+      PacketId::ChatJoinRequest,
+      [&called](const SessionPtr&, const ChatJoinRequest&) {
         called = true;
       });
 
-  // 헤더는 ChatJoin, 바디는 잘린 length-delimited 필드(태그0x0A len5 인데 1바이트만).
+  // 헤더는 ChatJoinRequest, 바디는 잘린 length-delimited 필드(태그0x0A len5 인데 1바이트만).
   std::vector<uint8_t> buf(HeaderSize + 3);
   EncodeHeader(buf.data(),
                PacketHeader{static_cast<uint16_t>(buf.size()),
-                            static_cast<uint16_t>(PacketId::ChatJoin)});
+                            static_cast<uint16_t>(PacketId::ChatJoinRequest)});
   buf[HeaderSize + 0] = 0x0A;
   buf[HeaderSize + 1] = 0x05;
   buf[HeaderSize + 2] = 0x41;
@@ -74,14 +74,14 @@ TEST(DispatcherGate, DropsNonPreauthPacketFromUnauthenticatedSession) {
   SessionRegistry reg;
   Dispatcher d;
   bool called = false;
-  d.RegisterTyped<ChatSay>(
-      PacketId::ChatSay,
-      [&called](const SessionPtr&, const ChatSay&) { called = true; });
+  d.RegisterTyped<ChatSayRequest>(
+      PacketId::ChatSayRequest,
+      [&called](const SessionPtr&, const ChatSayRequest&) { called = true; });
 
   auto s = MakeDummySession(io, d, reg);  // 미인증
-  ChatSay say;
+  ChatSayRequest say;
   say.set_text("hi");
-  const auto pkt = MakePacket(PacketId::ChatSay, say);
+  const auto pkt = MakePacket(PacketId::ChatSayRequest, say);
   d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
 
   EXPECT_FALSE(called);  // 게이트에서 drop — 핸들러 미도달
@@ -94,15 +94,15 @@ TEST(DispatcherGate, AllowsPreauthPacketFromUnauthenticatedSession) {
   SessionRegistry reg;
   Dispatcher d;
   bool called = false;
-  d.RegisterTyped<ChatJoin>(
-      PacketId::ChatJoin,
-      [&called](const SessionPtr&, const ChatJoin&) { called = true; });
-  d.AllowUnauthenticated(PacketId::ChatJoin);
+  d.RegisterTyped<ChatJoinRequest>(
+      PacketId::ChatJoinRequest,
+      [&called](const SessionPtr&, const ChatJoinRequest&) { called = true; });
+  d.AllowUnauthenticated(PacketId::ChatJoinRequest);
 
   auto s = MakeDummySession(io, d, reg);  // 미인증
-  ChatJoin join;
+  ChatJoinRequest join;
   join.set_nickname("alice");
-  const auto pkt = MakePacket(PacketId::ChatJoin, join);
+  const auto pkt = MakePacket(PacketId::ChatJoinRequest, join);
   d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
 
   EXPECT_TRUE(called);  // preauth allowlist 통과
@@ -114,15 +114,15 @@ TEST(DispatcherGate, AllowsAnyRegisteredPacketFromAuthenticatedSession) {
   SessionRegistry reg;
   Dispatcher d;
   bool called = false;
-  d.RegisterTyped<ChatSay>(
-      PacketId::ChatSay,
-      [&called](const SessionPtr&, const ChatSay&) { called = true; });
+  d.RegisterTyped<ChatSayRequest>(
+      PacketId::ChatSayRequest,
+      [&called](const SessionPtr&, const ChatSayRequest&) { called = true; });
 
   auto s = MakeDummySession(io, d, reg);
   ASSERT_TRUE(s->Authenticate("alice"));  // 인증 완료
-  ChatSay say;
+  ChatSayRequest say;
   say.set_text("hi");
-  const auto pkt = MakePacket(PacketId::ChatSay, say);
+  const auto pkt = MakePacket(PacketId::ChatSayRequest, say);
   d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
 
   EXPECT_TRUE(called);

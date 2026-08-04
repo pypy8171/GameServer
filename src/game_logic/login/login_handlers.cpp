@@ -13,7 +13,7 @@ using game::core::MakePacket;
 using game::core::PacketId;
 using game::core::SessionPtr;
 using game::proto::LoginRequest;
-using game::proto::LoginResult;
+using game::proto::LoginResponse;
 
 LoginOutcome EvaluateLogin(const IAccountRepository& repo,
                            const LoginRequest& req) {
@@ -47,10 +47,10 @@ void RegisterLoginHandlers(Dispatcher& dispatcher,
                                       const LoginRequest& req) {
         // 이미 인증된 세션의 재로그인은 신원 재설정 없이 거부(1회성 유지).
         if (s->authenticated()) {
-          LoginResult res;
+          LoginResponse res;
           res.set_ok(false);
           res.set_reason("already authenticated");
-          s->Send(MakePacket(PacketId::LoginResult, res));
+          s->Send(MakePacket(PacketId::LoginResponse, res));
           return;
         }
         const LoginOutcome out = EvaluateLogin(repo, req);
@@ -64,7 +64,7 @@ void RegisterLoginHandlers(Dispatcher& dispatcher,
           LOG_INFO("[login] 인증 실패 (id={}): {}", s->id(),
                    out.response.reason());
         }
-        s->Send(MakePacket(PacketId::LoginResult, out.response));
+        s->Send(MakePacket(PacketId::LoginResponse, out.response));
       });
 }
 
