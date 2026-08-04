@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 #include "core/packet/packet.h"
@@ -46,6 +47,10 @@ class Dispatcher {
   // 저수준 등록: 바디 파싱을 핸들러가 직접 한다.
   void Register(PacketId id, PacketHandler handler);
 
+  // [ADR-J] 미인증 세션도 통과시킬 패킷(로그인/입장)을 allowlist 에 등록한다.
+  // 기동 시 1회만 호출(핸들러 등록과 동일 규율) — 이후 Dispatch 는 읽기 전용.
+  void AllowUnauthenticated(PacketId id);
+
   // 타입드 등록: 등록 지점에서 TMsg 로 역직렬화한 뒤 핸들러를 호출한다.
   // 파싱 실패면 핸들러를 부르지 않고 drop(빌드 무관) + 관측 로그(ADR-G).
   template <class TMsg>
@@ -76,6 +81,8 @@ class Dispatcher {
 
   const ISerializer& serializer_;
   std::unordered_map<uint16_t, PacketHandler> handlers_;
+  // 미인증 통과 허용 패킷 id. 기동 시 채우고 Dispatch 에서 읽기 전용 조회(락 불필요).
+  std::unordered_set<uint16_t> preauth_;
 };
 
 }  // namespace game::core

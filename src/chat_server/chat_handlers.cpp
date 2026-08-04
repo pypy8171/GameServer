@@ -27,6 +27,10 @@ std::vector<uint8_t> MakeSystem(const std::string& text) {
 }  // namespace
 
 void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
+  // ChatJoin 은 신원을 확립하는 입장 패킷이다 → 미인증 게이트를 통과해야 한다.
+  // (allowlist 에 없으면 미인증 세션의 ChatJoin 이 drop 돼 아무도 입장할 수 없다) [ADR-J]
+  dispatcher.AllowUnauthenticated(PacketId::ChatJoin);
+
   // ---- ChatJoin (C->S): 신원 1회 등록 ----
   // 파싱/실패 drop 은 RegisterTyped 가 처리 → 핸들러는 이미-파싱된 msg 만 다룬다.
   dispatcher.RegisterTyped<ChatJoin>(

@@ -1,14 +1,29 @@
 #include <gtest/gtest.h>
 
+#include <asio.hpp>
 #include <cstdint>
+#include <memory>
+#include <utility>
 #include <vector>
 
 #include "chat.pb.h"
 #include "core/dispatch/dispatcher.h"
+#include "core/net/session.h"
+#include "core/net/session_registry.h"
 #include "core/packet/packet.h"
 
 using namespace game::core;
 using namespace game::proto;
+
+namespace {
+// 소켓을 열지 않은 더미 세션. 게이트가 참조하는 authenticated()/principal() 만
+// 검증하며 실제 IO(Start/Send)는 부르지 않는다(registry_test 의 헬퍼와 동일 규율).
+SessionPtr MakeDummySession(asio::io_context& io, Dispatcher& d,
+                            SessionRegistry& r) {
+  asio::ip::tcp::socket sock(io);
+  return std::make_shared<Session>(std::move(sock), d, r);
+}
+}  // namespace
 
 // 타입드 등록: 디스패처가 바디를 파싱해 이미-파싱된 메시지를 핸들러에 넘긴다.
 // (핸들러마다 반복되던 ParseFromArray 를 등록 지점으로 일괄 회수한 결과)
@@ -50,4 +65,65 @@ TEST(DispatcherTyped, DropsMalformedBodyWithoutCallingHandler) {
   d.Dispatch(SessionPtr{}, buf.data(), static_cast<uint16_t>(buf.size()));
 
   EXPECT_FALSE(called);
+}
+
+// [ADR-J] 미인증 게이트: allowlist 에 없는 패킷은 미인증 세션에서 파싱 이전에 drop.
+// (역직렬화조차 도달 못 하게 막아 M1 의 "파싱 후 인증검사" 사각지대를 구조적으로 해소)
+TEST(DispatcherGate, DropsNonPreauthPacketFromUnauthenticatedSession) {
+  asio::io_context io;
+  SessionRegistry reg;
+  Dispatcher d;
+  bool called = false;
+  d.RegisterTyped<ChatSay>(
+      PacketId::ChatSay,
+      [&called](const SessionPtr&, const ChatSay&) { called = true; });
+
+  auto s = MakeDummySession(io, d, reg);  // 미인증
+  ChatSay say;
+  say.set_text("hi");
+  const auto pkt = MakePacket(PacketId::ChatSay, say);
+  d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
+
+  EXPECT_FALSE(called);  // 게이트에서 drop — 핸들러 미도달
+}
+
+// allowlist 에 등록된 로그인/입장 패킷은 미인증이어도 핸들러까지 도달해야 한다
+// (그렇지 않으면 아무도 인증을 시작할 수 없다).
+TEST(DispatcherGate, AllowsPreauthPacketFromUnauthenticatedSession) {
+  asio::io_context io;
+  SessionRegistry reg;
+  Dispatcher d;
+  bool called = false;
+  d.RegisterTyped<ChatJoin>(
+      PacketId::ChatJoin,
+      [&called](const SessionPtr&, const ChatJoin&) { called = true; });
+  d.AllowUnauthenticated(PacketId::ChatJoin);
+
+  auto s = MakeDummySession(io, d, reg);  // 미인증
+  ChatJoin join;
+  join.set_nickname("alice");
+  const auto pkt = MakePacket(PacketId::ChatJoin, join);
+  d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
+
+  EXPECT_TRUE(called);  // preauth allowlist 통과
+}
+
+// 인증된 세션은 allowlist 여부와 무관하게 등록된 핸들러에 도달한다.
+TEST(DispatcherGate, AllowsAnyRegisteredPacketFromAuthenticatedSession) {
+  asio::io_context io;
+  SessionRegistry reg;
+  Dispatcher d;
+  bool called = false;
+  d.RegisterTyped<ChatSay>(
+      PacketId::ChatSay,
+      [&called](const SessionPtr&, const ChatSay&) { called = true; });
+
+  auto s = MakeDummySession(io, d, reg);
+  ASSERT_TRUE(s->Authenticate("alice"));  // 인증 완료
+  ChatSay say;
+  say.set_text("hi");
+  const auto pkt = MakePacket(PacketId::ChatSay, say);
+  d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
+
+  EXPECT_TRUE(called);
 }

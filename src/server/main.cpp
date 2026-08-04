@@ -50,6 +50,9 @@ int main(int argc, char** argv) {
         res.set_message(req.message());
         session->Send(MakePacket(PacketId::EchoResponse, res));
       });
+  // echo 는 인증 개념이 없는 무상태 데모 → 모든 트래픽이 정당한 preauth 다.
+  // 미인증 게이트[ADR-J]에 명시적으로 통과시키지 않으면 EchoRequest 가 전부 drop 된다.
+  dispatcher.AllowUnauthenticated(PacketId::EchoRequest);
 
   // ---- 서버 기동 ----
   asio::io_context io;
