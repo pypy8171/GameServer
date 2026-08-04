@@ -16,6 +16,11 @@ const char* PacketIdName(uint16_t id) {
     case PacketId::ChatJoinResult: return "ChatJoinResult";
     case PacketId::ChatBroadcast:  return "ChatBroadcast";
     case PacketId::ChatNotice:     return "ChatNotice";
+    case PacketId::LoginRequest:   return "LoginRequest";
+    case PacketId::LoginResult:    return "LoginResult";
+    case PacketId::Move:           return "Move";
+    case PacketId::WorldEntered:   return "WorldEntered";
+    case PacketId::MoveNotify:     return "MoveNotify";
   }
   return "Unknown";
 }

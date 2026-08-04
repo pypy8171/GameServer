@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package game.proto;
+
+// ============================================================
+//  게임 콘텐츠 메시지 (0x8000+ 확장 대역)
+//  패킷 ID(라우팅 키)는 src/core/packet/packet.h 의 PacketId enum 에서 관리.
+//  방향 규율(게임 확장 하위관례):
+//    게임 C->S : [0x8000, 0x9000)  — Move
+//    게임 S->C : [0x9000, 0xA000)  — WorldEntered, MoveNotify
+//  스푸핑 표면 제거: C->S 메시지에 발신자(player_id)를 두지 않는다.
+//  발신자는 서버가 세션 신원에서 채운다(chat 과 동일 규율).
+//  게임 로직(엔티티 가변상태)은 단일 World strand 안에서만 변경(ADR-O).
+// ============================================================
+
+// --- C->S ---
+message Move {
+  float x = 1;  // 목표 좌표. 발신자 없음 — 서버가 세션→엔티티로 해석.
+  float y = 2;
+}
+
+// --- S->C ---
+// 로그인 성공 → 월드 입장 직후 서버가 내려주는 첫 스냅샷(내 스폰 위치).
+message WorldEntered {
+  uint64 player_id = 1;
+  float x = 2;
+  float y = 3;
+}
+
+// 이동 결과 브로드캐스트. 서버가 세션 신원에서 채운 player_id.
+message MoveNotify {
+  uint64 player_id = 1;
+  float x = 2;
+  float y = 3;
+}
