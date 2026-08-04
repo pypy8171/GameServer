@@ -1,6 +1,7 @@
 find_package(GTest CONFIG REQUIRED)
 
 add_executable(core_tests
+  server_config_test.cpp
   packet_test.cpp
   serializer_test.cpp
   dispatcher_test.cpp

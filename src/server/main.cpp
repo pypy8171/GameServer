@@ -6,6 +6,7 @@
 #include <thread>
 #include <vector>
 
+#include "core/config/server_config.h"
 #include "core/dispatch/dispatcher.h"
 #include "core/net/server.h"
 #include "core/net/session.h"
@@ -19,8 +20,20 @@ using namespace game::proto;
 int main(int argc, char** argv) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  const uint16_t port =
-      (argc > 1) ? static_cast<uint16_t>(std::stoi(argv[1])) : 7777;
+  // 포트 우선순위: CLI 인자 > 설정파일(echo_server.cfg) > 기본값 7777.
+  uint16_t port = 7777;
+  bool cfg_ok = false;
+  const ServerConfig cfg = ServerConfig::FromFile("echo_server.cfg", &cfg_ok);
+  if (cfg_ok) port = cfg.GetUInt16("port", port);
+  if (argc > 1) {
+    uint16_t cli = 0;
+    if (ServerConfig::ParseUInt16(argv[1], cli)) {
+      port = cli;
+    } else {
+      std::cerr << "[server] invalid port arg '" << argv[1] << "', using "
+                << port << "\n";
+    }
+  }
   const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
   // ---- 핸들러 등록 (Echo) ----
 

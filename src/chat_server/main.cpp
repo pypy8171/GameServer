@@ -6,6 +6,7 @@
 #include <asio.hpp>
 #include <csignal>
 #include <cstdint>
+#include <iostream>
 #include <optional>
 #include <thread>
 #include <vector>
@@ -17,6 +18,7 @@
 #include <google/protobuf/stubs/common.h>
 
 #include "chat_server/chat_handlers.h"
+#include "core/config/server_config.h"
 #include "core/dispatch/dispatcher.h"
 #include "core/log/log.h"
 #include "core/net/server.h"
@@ -32,8 +34,20 @@ int main(int argc, char** argv) {
 #endif
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  const uint16_t port =
-      (argc > 1) ? static_cast<uint16_t>(std::stoi(argv[1])) : 7777;
+  // 포트 우선순위: CLI 인자 > 설정파일(chat_server.cfg) > 기본값 7777.
+  uint16_t port = 7777;
+  bool cfg_ok = false;
+  const ServerConfig cfg = ServerConfig::FromFile("chat_server.cfg", &cfg_ok);
+  if (cfg_ok) port = cfg.GetUInt16("port", port);
+  if (argc > 1) {
+    uint16_t cli = 0;
+    if (ServerConfig::ParseUInt16(argv[1], cli)) {
+      port = cli;
+    } else {
+      std::cerr << "[chat] invalid port arg '" << argv[1] << "', using " << port
+                << "\n";
+    }
+  }
   const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
 
   // 비동기 파일 로거 초기화(콘솔 미러링 on). 스레드 시작 전에 1회.

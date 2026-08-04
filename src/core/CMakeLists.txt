@@ -1,5 +1,6 @@
 # 게임 무관 서버 코어 (네트워크 · 패킷 · 디스패치 · 로깅)
 add_library(game_core STATIC
+  config/server_config.cpp
   packet/packet.cpp
   serialize/serializer.cpp
   dispatch/dispatcher.cpp
