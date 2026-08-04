@@ -33,11 +33,19 @@ int main(int argc, char** argv) {
 #endif
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  // 포트 우선순위: CLI 인자 > 설정파일(game_server.cfg) > 기본값 7777.
-  uint16_t port = 7777;
+  // 설정값 해석. port 는 CLI 인자 > 설정파일 > 기본값, 풀 용량은 설정파일 > 기본값.
+  //   키가 있으면 그 값, 없거나(파일 부재 포함) 잘못된 값이면 기본값으로 폴백한다.
+  //   entity/guild 풀은 MG-⑤+ 서브시스템에서 이 용량을 소비할 예정(현재는 로그로 확인).
+  uint16_t port = 7777;              // 리슨 포트 기본값
+  int entity_pool_count = 10000;     // 엔티티 풀 기본 용량
+  int guild_pool_count = 1000;       // 길드 풀 기본 용량
   bool cfg_ok = false;
   const ServerConfig cfg = ServerConfig::FromFile("game_server.cfg", &cfg_ok);
-  if (cfg_ok) port = cfg.GetUInt16("port", port);
+  if (cfg_ok) {
+    port = cfg.GetUInt16("port", port);
+    entity_pool_count = cfg.GetInt("entity_pool_count", entity_pool_count);
+    guild_pool_count = cfg.GetInt("guild_pool_count", guild_pool_count);
+  }
   if (argc > 1) {
     uint16_t cli = 0;
     if (ServerConfig::ParseUInt16(argv[1], cli)) {
@@ -51,6 +59,12 @@ int main(int argc, char** argv) {
 
   // 비동기 파일 로거 초기화(콘솔 미러링 on). 스레드 시작 전에 1회.
   log::Init("logs/game_server.log", log::Level::Info, /*console=*/true);
+
+  // 해석된 설정값 확인용 로그. cfg_ok=false 면 파일을 못 읽어 전부 기본값이다.
+  LOG_INFO(
+      "config loaded (cfg_ok={}): port={} entity_pool_count={} "
+      "guild_pool_count={}",
+      cfg_ok, port, entity_pool_count, guild_pool_count);
 
   SessionRegistry registry;
   Dispatcher dispatcher;

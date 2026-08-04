@@ -1,10 +1,39 @@
 #include <gtest/gtest.h>
 
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <string>
 
 #include "core/config/server_config.h"
 
 using namespace game::core;
+
+namespace {
+
+// 테스트용 임시 파일에 내용을 쓰고 경로를 돌려준다. 소멸 시 파일을 지운다.
+//   실제 디스크 파일을 거치는 로딩 경로(FromFile)를 Parse 와 분리해 검증하기 위함.
+class TempCfgFile {
+ public:
+  explicit TempCfgFile(const std::string& body) {
+    path_ = std::filesystem::temp_directory_path() /
+            ("gs_cfg_test_" + std::to_string(::testing::UnitTest::GetInstance()
+                                                  ->random_seed()) +
+             ".cfg");
+    std::ofstream out(path_, std::ios::binary | std::ios::trunc);
+    out << body;
+  }
+  ~TempCfgFile() {
+    std::error_code ec;
+    std::filesystem::remove(path_, ec);
+  }
+  std::string Path() const { return path_.string(); }
+
+ private:
+  std::filesystem::path path_;
+};
+
+}  // namespace
 
 // 기본 파싱: "key:value" 한 줄씩 → 정수 조회.
 TEST(ServerConfig, ParsesKeyColonValue) {
@@ -81,6 +110,35 @@ TEST(ServerConfig, EmptyValueParsesAsPresentButIntFallsBack) {
   EXPECT_TRUE(cfg.Has("port"));
   EXPECT_EQ(cfg.GetString("port", "x"), "");
   EXPECT_EQ(cfg.GetInt("port", 7777), 7777);
+}
+
+// 통합: 실제 파일에서 로드. 지정된 키(port·entity_pool_count)는 그 값으로,
+//   생략된 키(guild_pool_count)는 호출자 기본값으로 폴백 — game_server 배선과 동일.
+TEST(ServerConfig, FromFileAppliesPresentValuesAndFallsBackForAbsent) {
+  const TempCfgFile file(
+      "# 통합 테스트용 config\n"
+      "port : 8123\n"
+      "entity_pool_count : 50000\n"
+      "# guild_pool_count 는 생략 → 기본값 폴백\n");
+
+  bool ok = false;
+  const auto cfg = ServerConfig::FromFile(file.Path(), &ok);
+  ASSERT_TRUE(ok);  // 파일 읽기 성공
+
+  EXPECT_EQ(cfg.GetUInt16("port", 7777), 8123);            // present → 값
+  EXPECT_EQ(cfg.GetInt("entity_pool_count", 10000), 50000);  // present → 값
+  EXPECT_EQ(cfg.GetInt("guild_pool_count", 1000), 1000);   // absent  → 기본값
+}
+
+// 통합: 파일이 없으면 ok=false 이고 모든 조회가 기본값으로 폴백(빈 설정).
+TEST(ServerConfig, FromFileMissingSignalsNotOkAndAllFallback) {
+  bool ok = true;
+  const auto cfg =
+      ServerConfig::FromFile("no_such_dir/definitely_absent.cfg", &ok);
+  EXPECT_FALSE(ok);  // 못 읽음
+  EXPECT_EQ(cfg.GetUInt16("port", 7777), 7777);
+  EXPECT_EQ(cfg.GetInt("entity_pool_count", 10000), 10000);
+  EXPECT_EQ(cfg.GetInt("guild_pool_count", 1000), 1000);
 }
 
 // CLI 등 맵 밖 값의 안전 파싱 유틸: 정상/비숫자/범위밖/부분파싱.
