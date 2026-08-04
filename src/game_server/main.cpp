@@ -23,6 +23,8 @@
 #include "core/log/log.h"
 #include "core/net/server.h"
 #include "core/net/session_registry.h"
+#include "game_logic/account/in_memory_account_repository.h"
+#include "game_logic/login/login_handlers.h"
 
 using namespace game::core;
 
@@ -66,10 +68,30 @@ int main(int argc, char** argv) {
       "guild_pool_count={}",
       cfg_ok, port, entity_pool_count, guild_pool_count);
 
+  // 계정 저장소(인메모리 스텁). dispatcher 보다 먼저 선언해 더 오래 살게 한다
+  //   — 로그인 핸들러가 이 repo 를 참조 캡처하기 때문(수명 역전 시 UAF).
+  //   ⚠️ 자격증명은 소스/커밋에 절대 두지 않는다: 데모 계정은 로컬 전용(비추적)
+  //   game_server.cfg 의 demo_account/demo_password 키에서만 프로비저닝한다.
+  //   키가 없으면 계정 0개 → 모든 로그인 거부(핸드셰이크 경로 자체는 살아있음).
+  game::logic::InMemoryAccountRepository accounts;
+  const std::string demo_account = cfg.GetString("demo_account", "");
+  const std::string demo_password = cfg.GetString("demo_password", "");
+  if (!demo_account.empty() && !demo_password.empty()) {
+    const auto demo_pid =
+        static_cast<game::logic::PlayerId>(cfg.GetInt("demo_player_id", 1));
+    accounts.AddAccount(demo_account, demo_password, demo_pid);
+    LOG_INFO("[login] 데모 계정 프로비저닝됨(cfg): account={} player_id={}",
+             demo_account, demo_pid);  // 비밀번호는 로깅하지 않는다
+  } else {
+    LOG_WARN(
+        "[login] 프로비저닝된 계정 없음 — 모든 로그인 거부. "
+        "game_server.cfg 에 demo_account/demo_password 설정 시 활성화.");
+  }
+
   SessionRegistry registry;
   Dispatcher dispatcher;
-  // TODO(MG-⑤+): RegisterLoginHandlers/RegisterGameHandlers(dispatcher, ...) 로
-  //   로그인·이동 핸들러를 꽂는다. 지금은 핸들러가 없어 모든 수신 패킷을 drop 한다.
+  game::logic::RegisterLoginHandlers(dispatcher, accounts);  // [ADR-P/J]
+  // TODO(MG-⑥+): RegisterGameHandlers(dispatcher, world, ...) 로 월드입장·이동을 꽂는다.
 
   asio::io_context io;
   // 바인드/리슨 실패(포트 점유 등)는 Server 생성자에서 예외로 던진다. worker

@@ -8,9 +8,12 @@ add_executable(core_tests
   registry_test.cpp
   chat_relay_test.cpp
   log_test.cpp
+  password_hash_test.cpp
+  account_repository_test.cpp
+  login_handler_test.cpp
 )
 target_link_libraries(core_tests PRIVATE
-  game_core game_proto chat_logic
+  game_core game_proto chat_logic game_logic
   GTest::gtest GTest::gtest_main
 )
 
