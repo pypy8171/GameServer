@@ -14,27 +14,25 @@
 namespace game::chat {
 
 using namespace game::core;
+using namespace game::proto;
 
 namespace {
 
 std::vector<uint8_t> MakeSystem(const std::string& text) {
-  game::proto::ChatSystem sys;
+  ChatNotice sys;
   sys.set_text(text);
-  return MakePacket(PacketId::ChatSystem, sys);
+  return MakePacket(PacketId::ChatNotice, sys);
 }
 
 }  // namespace
 
 void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
   // ---- ChatJoin (C->S): 신원 1회 등록 ----
-  dispatcher.Register(
+  // 파싱/실패 drop 은 RegisterTyped 가 처리 → 핸들러는 이미-파싱된 msg 만 다룬다.
+  dispatcher.RegisterTyped<ChatJoin>(
       PacketId::ChatJoin,
-      [&registry](const SessionPtr& s, const uint8_t* body, uint16_t size) {
-        game::proto::ChatJoin msg;
-        if (!msg.ParseFromArray(body, size)) {
-          return;
-        }
-        game::proto::ChatJoinResult res;
+      [&registry](const SessionPtr& s, const ChatJoin& msg) {
+        ChatJoinResult res;
         const std::string& nick = msg.nickname();
         if (nick.empty() || nick.size() > MaxChatTextBytes) {
           res.set_ok(false);
@@ -56,20 +54,16 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
       });
 
   // ---- ChatSay (C->S): 발화 릴레이 ----
-  dispatcher.Register(
+  dispatcher.RegisterTyped<ChatSay>(
       PacketId::ChatSay,
-      [&registry](const SessionPtr& s, const uint8_t* body, uint16_t size) {
+      [&registry](const SessionPtr& s, const ChatSay& msg) {
         if (!s->joined()) {
           return;  // 신원 없는 발화는 무시
-        }
-        game::proto::ChatSay msg;
-        if (!msg.ParseFromArray(body, size)) {
-          return;
         }
         if (msg.text().empty() || msg.text().size() > MaxChatTextBytes) {
           return;
         }
-        game::proto::ChatBroadcast out;
+        ChatBroadcast out;
         out.set_sender(s->nickname());  // 발신자는 세션 신원에서(스푸핑 차단)
         out.set_text(msg.text());
         // 어떤 유저가 어떤 내용을 보냈는지 기록(내용은 인자로 — 포맷 오해석 방지).

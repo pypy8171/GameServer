@@ -23,6 +23,7 @@
 #include "core/net/session_registry.h"
 
 using namespace game::core;
+using namespace game::chat;
 
 int main(int argc, char** argv) {
 #if defined(_WIN32)
@@ -40,7 +41,7 @@ int main(int argc, char** argv) {
 
   SessionRegistry registry;
   Dispatcher dispatcher;
-  game::chat::RegisterChatHandlers(dispatcher, registry);
+  RegisterChatHandlers(dispatcher, registry);
 
   asio::io_context io;
   // 바인드/리슨 실패(포트 점유 등)는 Server 생성자에서 예외로 던진다. 이는
@@ -49,7 +50,7 @@ int main(int argc, char** argv) {
   std::optional<Server> server;
   try {
     server.emplace(io, port, dispatcher, registry);
-    server->set_on_disconnect(game::chat::MakeDisconnectHook(registry));
+    server->set_on_disconnect(MakeDisconnectHook(registry));
     server->Start();
   } catch (const std::exception& e) {
     LOG_FATAL("server bind/start failed on port {}: {}", port, e.what());

@@ -14,6 +14,7 @@
 #include "packet.pb.h"
 
 using namespace game::core;
+using namespace game::proto;
 
 int main(int argc, char** argv) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
@@ -27,12 +28,12 @@ int main(int argc, char** argv) {
   dispatcher.Register(
       PacketId::EchoRequest,
       [](const SessionPtr& session, const uint8_t* body, uint16_t size) {
-        game::proto::EchoRequest req;
+        EchoRequest req;
         if (!req.ParseFromArray(body, size)) {
           std::cerr << "[echo] parse failed\n";
           return;
         }
-        game::proto::EchoResponse res;
+        EchoResponse res;
         res.set_message(req.message());
         session->Send(MakePacket(PacketId::EchoResponse, res));
       });

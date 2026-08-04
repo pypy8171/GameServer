@@ -43,7 +43,7 @@ enum class PacketId : uint16_t {
   // --- Chat : S->C (0x2000 대역) ---
   ChatJoinResult = 0x2001,
   ChatBroadcast = 0x2002,
-  ChatSystem = 0x2003,
+  ChatNotice = 0x2003,
 };
 
 constexpr size_t HeaderSize = sizeof(PacketHeader);
@@ -61,6 +61,14 @@ constexpr bool IsServerToClient(uint16_t id) {
 // NOTE(endianness): 헤더는 현재 호스트 바이트오더로 직렬화한다.
 // x64 Windows(리틀엔디안) 단일 플랫폼 기준의 의도적 단순화이며,
 // 이기종 클러스터로 확장 시 htons/ntohs 정규화가 필요하다. (PROGRESS.md 참조)
+
+// 헤더 (de)serialize 를 한 곳으로 집약한다(D6/F4 엔디안 정규화 흡수).
+// 와이어 포맷 = little-endian 고정. 바이트 단위 load/store 라 호스트 바이트오더에
+// 무관하게 정답이며, x64(LE)에선 단일 mov 로 컴파일된다(no-op 래퍼 아님).
+// 수신/송신/디스패치 어디서도 raw memcpy 로 헤더를 다루지 말고 이 헬퍼를 쓴다.
+// (Session::ReadHeader 멤버와의 혼동을 피해 Decode/Encode 로 명명.)
+PacketHeader DecodeHeader(const uint8_t* src);
+void EncodeHeader(uint8_t* dst, const PacketHeader& header);
 
 // PacketId → 사람이 읽을 이름. 로깅/디버깅용. 미등록 id는 "unknown".
 //   (숫자 id만으론 어떤 패킷인지 알기 어려워 관측성 저하 → 이름 병기)

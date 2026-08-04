@@ -20,14 +20,26 @@ std::string DescribePacket(uint16_t id) {
 }
 }  // namespace
 
+const ISerializer& Dispatcher::DefaultSerializer() {
+  static const ProtobufSerializer kDefault;
+  return kDefault;
+}
+
+Dispatcher::Dispatcher(const ISerializer& serializer)
+    : serializer_(serializer) {}
+
 void Dispatcher::Register(PacketId id, PacketHandler handler) {
   handlers_[static_cast<uint16_t>(id)] = std::move(handler);
 }
 
+void Dispatcher::OnParseFailed(uint16_t id) const {
+  // ADR-G: 역직렬화 실패 = 빌드 무관 drop. 관측을 위해 로그(rate-limit 은 M2).
+  LOG_WARN("parse failed for {} — dropped", DescribePacket(id));
+}
+
 void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
                           uint16_t packet_size) const {
-  PacketHeader header;
-  std::memcpy(&header, packet, HeaderSize);
+  const PacketHeader header = DecodeHeader(packet);
 
   // 방향 검증(ADR-D): S->C 대역 패킷을 서버가 수신 = 프로토콜 위반 → 드롭.
   if (IsServerToClient(header.id)) {

@@ -18,6 +18,8 @@
 #include "core/packet/packet.h"
 
 using namespace game::core;
+using namespace game::proto;
+using namespace game::chat;
 using asio::ip::tcp;
 
 namespace {
@@ -50,7 +52,7 @@ tcp::socket Connect(asio::io_context& io) {
 }
 
 void SendJoin(tcp::socket& s, const std::string& nick) {
-  game::proto::ChatJoin join;
+  ChatJoin join;
   join.set_nickname(nick);
   asio::write(s, asio::buffer(MakePacket(PacketId::ChatJoin, join)));
 }
@@ -62,9 +64,9 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   asio::io_context server_io;
   SessionRegistry registry;
   Dispatcher dispatcher;
-  game::chat::RegisterChatHandlers(dispatcher, registry);
+  RegisterChatHandlers(dispatcher, registry);
   Server server(server_io, TestPort, dispatcher, registry);
-  server.set_on_disconnect(game::chat::MakeDisconnectHook(registry));
+  server.set_on_disconnect(MakeDisconnectHook(registry));
   server.Start();
   std::thread server_thread([&server_io] { server_io.run(); });
 
@@ -77,7 +79,7 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   Frame f = ReadFrame(alice);
   EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResult));
   {
-    game::proto::ChatJoinResult r;
+    ChatJoinResult r;
     ASSERT_TRUE(r.ParseFromArray(f.body.data(), static_cast<int>(f.body.size())));
     EXPECT_TRUE(r.ok());
   }
@@ -89,23 +91,23 @@ TEST(ChatRelay, JoinAnnouncesAndSayRelaysToAll) {
   EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatJoinResult));
 
   f = ReadFrame(alice);  // alice: "bob 입장"
-  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatSystem));
+  EXPECT_EQ(f.id, static_cast<uint16_t>(PacketId::ChatNotice));
   {
-    game::proto::ChatSystem sys;
+    ChatNotice sys;
     ASSERT_TRUE(sys.ParseFromArray(f.body.data(),
                                    static_cast<int>(f.body.size())));
     EXPECT_NE(sys.text().find("bob"), std::string::npos);
   }
 
   // alice 발화 → alice·bob 모두 ChatBroadcast(sender=alice) 수신.
-  game::proto::ChatSay say;
+  ChatSay say;
   say.set_text("hello");
   asio::write(alice, asio::buffer(MakePacket(PacketId::ChatSay, say)));
 
   for (tcp::socket* who : {&alice, &bob}) {
     Frame b = ReadFrame(*who);
     EXPECT_EQ(b.id, static_cast<uint16_t>(PacketId::ChatBroadcast));
-    game::proto::ChatBroadcast bc;
+    ChatBroadcast bc;
     ASSERT_TRUE(bc.ParseFromArray(b.body.data(), static_cast<int>(b.body.size())));
     EXPECT_EQ(bc.sender(), "alice");  // 발신자는 서버가 세션에서 채움
     EXPECT_EQ(bc.text(), "hello");

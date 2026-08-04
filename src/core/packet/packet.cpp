@@ -15,9 +15,28 @@ const char* PacketIdName(uint16_t id) {
     case PacketId::ChatSay:        return "ChatSay";
     case PacketId::ChatJoinResult: return "ChatJoinResult";
     case PacketId::ChatBroadcast:  return "ChatBroadcast";
-    case PacketId::ChatSystem:     return "ChatSystem";
+    case PacketId::ChatNotice:     return "ChatNotice";
   }
   return "Unknown";
+}
+
+namespace {
+// 와이어 포맷(little-endian) ↔ 호스트 정규화. 바이트 단위라 호스트 엔디안 무관.
+uint16_t LoadLE16(const uint8_t* p) {
+  return static_cast<uint16_t>(p[0] | (static_cast<uint16_t>(p[1]) << 8));
+}
+void StoreLE16(uint8_t* p, uint16_t v) {
+  p[0] = static_cast<uint8_t>(v & 0xFF);
+  p[1] = static_cast<uint8_t>(v >> 8);
+}
+}  // namespace
+
+PacketHeader DecodeHeader(const uint8_t* src) {
+  return PacketHeader{LoadLE16(src), LoadLE16(src + sizeof(uint16_t))};
+}
+void EncodeHeader(uint8_t* dst, const PacketHeader& header) {
+  StoreLE16(dst, header.size);
+  StoreLE16(dst + sizeof(uint16_t), header.id);
 }
 
 std::vector<uint8_t> MakePacket(PacketId id,
@@ -29,8 +48,8 @@ std::vector<uint8_t> MakePacket(PacketId id,
   }
 
   std::vector<uint8_t> buf(total);
-  PacketHeader header{static_cast<uint16_t>(total), static_cast<uint16_t>(id)};
-  std::memcpy(buf.data(), &header, HeaderSize);
+  EncodeHeader(buf.data(), PacketHeader{static_cast<uint16_t>(total),
+                                        static_cast<uint16_t>(id)});
   body.SerializeToArray(buf.data() + HeaderSize, static_cast<int>(body_size));
   return buf;
 }

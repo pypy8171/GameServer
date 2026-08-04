@@ -21,6 +21,7 @@
 #include "core/packet/packet.h"
 
 using namespace game::core;
+using namespace game::proto;
 
 namespace {
 // Windows 콘솔 기본 코드페이지(CP949)가 UTF-8 리터럴 바이트를 깨뜨린다.
@@ -78,7 +79,7 @@ class Reader : public std::enable_shared_from_this<Reader> {
   void Handle(uint16_t id, const uint8_t* body, int size) {
     switch (static_cast<PacketId>(id)) {
       case PacketId::ChatJoinResult: {
-        game::proto::ChatJoinResult r;
+        ChatJoinResult r;
         if (r.ParseFromArray(body, size)) {
           if (r.ok()) {
             std::cout << "* 입장 완료. 메시지를 입력하세요.\n";
@@ -89,14 +90,14 @@ class Reader : public std::enable_shared_from_this<Reader> {
         break;
       }
       case PacketId::ChatBroadcast: {
-        game::proto::ChatBroadcast b;
+        ChatBroadcast b;
         if (b.ParseFromArray(body, size)) {
           std::cout << b.sender() << ": " << b.text() << '\n';
         }
         break;
       }
-      case PacketId::ChatSystem: {
-        game::proto::ChatSystem s;
+      case PacketId::ChatNotice: {
+        ChatNotice s;
         if (s.ParseFromArray(body, size)) {
           std::cout << "* " << s.text() << '\n';
         }
@@ -136,7 +137,7 @@ int main(int argc, char** argv) {
   }
 
   // 신원 등록.
-  game::proto::ChatJoin join;
+  ChatJoin join;
   join.set_nickname(nickname);
   asio::write(socket, asio::buffer(MakePacket(PacketId::ChatJoin, join)));
 
@@ -151,7 +152,7 @@ int main(int argc, char** argv) {
     if (line.empty()) {
       continue;
     }
-    game::proto::ChatSay say;
+    ChatSay say;
     say.set_text(line);
     std::error_code ec;
     asio::write(socket, asio::buffer(MakePacket(PacketId::ChatSay, say)), ec);

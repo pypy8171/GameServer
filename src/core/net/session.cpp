@@ -52,8 +52,7 @@ void Session::ReadHeader() {
           Close();
           return;
         }
-        PacketHeader header;
-        std::memcpy(&header, recv_buf_.data(), HeaderSize);
+        const PacketHeader header = DecodeHeader(recv_buf_.data());
         if (header.size < HeaderSize || header.size > MaxPacketSize) {
           LOG_WARN("invalid packet size={} from id={} — closing", header.size,
                    id_);
