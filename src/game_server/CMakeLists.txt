@@ -2,3 +2,4 @@
 # 라이브러리(game_logic)로 분리해 실행파일·통합테스트가 공유하게 한다.
 add_executable(game_server main.cpp)
 target_link_libraries(game_server PRIVATE game_core game_proto game_logic)
+deploy_config(game_server game_server.cfg)  # cfg 를 exe 옆으로 배포

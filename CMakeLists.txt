@@ -22,6 +22,20 @@ find_package(asio CONFIG REQUIRED)
 find_package(protobuf CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 
+# ---- 설정파일 배포 헬퍼 ----
+# 서버 실행파일 옆(출력 디렉터리)으로 config/<cfg_name> 을 복사한다.
+#   코드는 bare 파일명을 CWD 기준으로 열고, VS/직접 실행 시 CWD 가 exe 폴더이므로
+#   여기로 복사해두면 CWD 무관하게 설정 로딩이 성공한다.
+#   주의: POST_BUILD 라 해당 타겟이 (재)링크될 때만 실행된다. cfg 만 수정했을 땐
+#   타겟 리빌드(또는 main.cpp touch) 후 반영된다.
+function(deploy_config target cfg_name)
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/config/${cfg_name}
+            $<TARGET_FILE_DIR:${target}>/${cfg_name}
+    COMMENT "Deploy config/${cfg_name} -> $<TARGET_FILE_DIR:${target}>")
+endfunction()
+
 # ---- 서브프로젝트 ----
 add_subdirectory(proto)     # game_proto : .proto -> C++ 생성
 add_subdirectory(src)       # game_core + echo_server + chat_server
