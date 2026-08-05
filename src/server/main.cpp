@@ -68,12 +68,29 @@ int main(int argc, char** argv) {
   });
 
   // ---- io_context 를 hardware_concurrency 만큼 스레드로 run ----
+  // io.run() 워커 가드(N-1): 핸들러에서 예외가 새면 워커 스레드가 조용히 죽어
+  //   (메인 스레드면 std::terminate) CCU 처리 용량이 무통보로 줄거나 서버가 멈춘다.
+  //   로깅 후 run()에 재진입해 워커를 살린다. (chat/game 서버와 동일 관용구 —
+  //   echo 는 async 로거를 띄우지 않는 최소 데모라 진단은 이 파일 규율대로 std::cerr.)
+  auto worker = [&io] {
+    for (;;) {
+      try {
+        io.run();
+        return;  // 정상 종료(io.stop) — 루프 탈출
+      } catch (const std::exception& e) {
+        std::cerr << "[server] worker exception: " << e.what() << "\n";
+      } catch (...) {
+        std::cerr << "[server] worker exception: (unknown)\n";
+      }
+    }
+  };
+
   std::vector<std::thread> pool;
   pool.reserve(threads > 0 ? threads - 1 : 0);
   for (unsigned i = 1; i < threads; ++i) {
-    pool.emplace_back([&io] { io.run(); });
+    pool.emplace_back(worker);
   }
-  io.run();
+  worker();
   for (auto& t : pool) {
     t.join();
   }

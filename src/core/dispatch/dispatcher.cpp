@@ -44,6 +44,16 @@ void Dispatcher::OnParseFailed(uint16_t id) const {
 
 void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
                           uint16_t packet_size) const {
+  // 경계 검증(N-2): 헤더보다 짧은 조각은 DecodeHeader 의 오버리드와
+  // 아래 `packet_size - kHeaderSize` 언더플로(uint16 wrap → 거대 body_size)를
+  // 유발한다. 프레이밍 계층이 완전 패킷만 넘겨야 하나, 디스패처도 신뢰 경계로서
+  // 방어적으로 재검증한다(size 필드 불신 규율, CLAUDE.md 동시성/경계 계약).
+  if (packet_size < kHeaderSize) {
+    LOG_WARN("undersized packet ({} bytes < header {}) dropped", packet_size,
+             kHeaderSize);
+    return;
+  }
+
   const PacketHeader header = DecodeHeader(packet);
 
   // 방향 검증(ADR-D): S->C 대역 패킷을 서버가 수신 = 프로토콜 위반 → 드롭.

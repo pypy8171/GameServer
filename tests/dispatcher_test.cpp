@@ -67,6 +67,29 @@ TEST(DispatcherTyped, DropsMalformedBodyWithoutCallingHandler) {
   EXPECT_FALSE(called);
 }
 
+// (N-2) 경계 검증: 헤더보다 짧은 조각(packet_size < kHeaderSize)은 진입에서 drop.
+// 가드가 없으면 `packet_size - kHeaderSize` 가 uint16 언더플로(→거대 body_size)로 wrap
+// 하며 핸들러가 헤더 뒤 쓰레기를 유효 바디로 호출한다. raw Register 로 바디 파싱과
+// 분리해 언더플로만 격리 검증(핸들러는 바디를 읽지 않음).
+TEST(DispatcherBounds, DropsUndersizedPacketBelowHeaderSize) {
+  Dispatcher d;
+  bool called = false;
+  d.Register(PacketId::ChatSayRequest,
+             [&called](const SessionPtr&, const uint8_t*, uint16_t) {
+               called = true;
+             });
+
+  // 헤더 id 는 등록 핸들러와 일치 → 가드가 없으면 방향/게이트를 통과해 호출됨.
+  // 버퍼는 kHeaderSize 만큼 잡아(DecodeHeader 오버리드 없이) size 만 미달로 전달.
+  std::vector<uint8_t> buf(kHeaderSize, 0);
+  EncodeHeader(buf.data(),
+               PacketHeader{static_cast<uint16_t>(kHeaderSize - 1),
+                            static_cast<uint16_t>(PacketId::ChatSayRequest)});
+  d.Dispatch(SessionPtr{}, buf.data(), static_cast<uint16_t>(kHeaderSize - 1));
+
+  EXPECT_FALSE(called);  // 진입 경계검증에서 drop — 핸들러 미도달
+}
+
 // [ADR-J] 미인증 게이트: allowlist 에 없는 패킷은 미인증 세션에서 파싱 이전에 drop.
 // (역직렬화조차 도달 못 하게 막아 M1 의 "파싱 후 인증검사" 사각지대를 구조적으로 해소)
 TEST(DispatcherGate, DropsNonPreauthPacketFromUnauthenticatedSession) {
