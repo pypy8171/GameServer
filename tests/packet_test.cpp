@@ -16,21 +16,21 @@ TEST(Packet, MakePacketFramesHeaderAndRoundTrips) {
   req.set_message("ping");
   auto buf = MakePacket(PacketId::EchoRequest, req);
 
-  ASSERT_GE(buf.size(), HeaderSize);
+  ASSERT_GE(buf.size(), kHeaderSize);
   PacketHeader h;
-  std::memcpy(&h, buf.data(), HeaderSize);
+  std::memcpy(&h, buf.data(), kHeaderSize);
   EXPECT_EQ(h.size, buf.size());
   EXPECT_EQ(h.id, static_cast<uint16_t>(PacketId::EchoRequest));
 
   EchoRequest parsed;
   ASSERT_TRUE(parsed.ParseFromArray(
-      buf.data() + HeaderSize, static_cast<int>(buf.size() - HeaderSize)));
+      buf.data() + kHeaderSize, static_cast<int>(buf.size() - kHeaderSize)));
   EXPECT_EQ(parsed.message(), "ping");
 }
 
 TEST(PacketHeader, WriteThenReadRoundTrips) {
   const PacketHeader h{/*size=*/1234, /*id=*/0x1002};
-  uint8_t buf[HeaderSize];
+  uint8_t buf[kHeaderSize];
   EncodeHeader(buf, h);
   const PacketHeader got = DecodeHeader(buf);
   EXPECT_EQ(got.size, 1234);
@@ -41,7 +41,7 @@ TEST(PacketHeader, WriteThenReadRoundTrips) {
 // 않음을 바이트 단위로 검증 → D6/F4(엔디안 정규화) 회귀 방지.
 TEST(PacketHeader, SerializesLittleEndianOnWire) {
   const PacketHeader h{/*size=*/0x3412, /*id=*/0x7856};
-  uint8_t buf[HeaderSize];
+  uint8_t buf[kHeaderSize];
   EncodeHeader(buf, h);
   EXPECT_EQ(buf[0], 0x12);  // size 하위바이트
   EXPECT_EQ(buf[1], 0x34);  // size 상위바이트
@@ -77,6 +77,6 @@ TEST(Packet, DirectionBandsClassifyLoginAndGameIds) {
 
 TEST(Packet, RejectsOversizePayload) {
   ChatSayRequest say;
-  say.set_text(std::string(MaxPacketSize + 100, 'x'));
+  say.set_text(std::string(kMaxPacketSize + 100, 'x'));
   EXPECT_THROW(MakePacket(PacketId::ChatSayRequest, say), std::length_error);
 }

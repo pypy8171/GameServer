@@ -55,13 +55,13 @@ TEST(DispatcherTyped, DropsMalformedBodyWithoutCallingHandler) {
       });
 
   // 헤더는 ChatJoinRequest, 바디는 잘린 length-delimited 필드(태그0x0A len5 인데 1바이트만).
-  std::vector<uint8_t> buf(HeaderSize + 3);
+  std::vector<uint8_t> buf(kHeaderSize + 3);
   EncodeHeader(buf.data(),
                PacketHeader{static_cast<uint16_t>(buf.size()),
                             static_cast<uint16_t>(PacketId::ChatJoinRequest)});
-  buf[HeaderSize + 0] = 0x0A;
-  buf[HeaderSize + 1] = 0x05;
-  buf[HeaderSize + 2] = 0x41;
+  buf[kHeaderSize + 0] = 0x0A;
+  buf[kHeaderSize + 1] = 0x05;
+  buf[kHeaderSize + 2] = 0x41;
   d.Dispatch(SessionPtr{}, buf.data(), static_cast<uint16_t>(buf.size()));
 
   EXPECT_FALSE(called);

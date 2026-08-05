@@ -33,11 +33,11 @@ struct Frame {
 
 // 소켓에서 한 프레임([헤더+바디])을 동기적으로 읽는다.
 Frame ReadFrame(tcp::socket& s) {
-  std::vector<uint8_t> hdr(HeaderSize);
-  asio::read(s, asio::buffer(hdr.data(), HeaderSize));
+  std::vector<uint8_t> hdr(kHeaderSize);
+  asio::read(s, asio::buffer(hdr.data(), kHeaderSize));
   PacketHeader h;
-  std::memcpy(&h, hdr.data(), HeaderSize);
-  std::vector<uint8_t> body(h.size - HeaderSize);
+  std::memcpy(&h, hdr.data(), kHeaderSize);
+  std::vector<uint8_t> body(h.size - kHeaderSize);
   if (!body.empty()) {
     asio::read(s, asio::buffer(body.data(), body.size()));
   }

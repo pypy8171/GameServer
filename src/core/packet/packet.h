@@ -59,9 +59,9 @@ enum class PacketId : uint16_t {
   MoveNotify = 0x9002,          // S->C : 이동 결과 브로드캐스트
 };
 
-constexpr size_t HeaderSize = sizeof(PacketHeader);
-constexpr size_t MaxPacketSize = 16 * 1024;  // 코어 상한 (악성 size 방어)
-constexpr size_t MaxChatTextBytes = 1024;    // 채팅 본문 상한
+constexpr size_t kHeaderSize = sizeof(PacketHeader);
+constexpr size_t kMaxPacketSize = 16 * 1024;  // 코어 상한 (악성 size 방어)
+constexpr size_t kMaxChatTextBytes = 1024;    // 채팅 본문 상한
 
 // 방향 판정. 디스패처가 수신 패킷이 S->C 대역이면 거부한다(방향 위반).
 // 표준 대역(인프라)과 0x8000+ 게임 확장 대역을 모두 포함한다.

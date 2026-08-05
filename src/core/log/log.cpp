@@ -25,13 +25,13 @@ spdlog::level::level_enum ToSpd(Level l) {
   return spdlog::level::info;
 }
 
-constexpr std::size_t QueueSlots = 8192;       // 비동기 큐 깊이
-constexpr std::size_t MaxFileBytes = 5 * 1024 * 1024;  // 5MB 단위 로테이션
-constexpr std::size_t MaxFiles = 3;            // 최대 보관 파일 수
+constexpr std::size_t kQueueSlots = 8192;       // 비동기 큐 깊이
+constexpr std::size_t kMaxFileBytes = 5 * 1024 * 1024;  // 5MB 단위 로테이션
+constexpr std::size_t kMaxFiles = 3;            // 최대 보관 파일 수
 // [%s:%# %!] = 호출 지점 소스파일:줄번호 함수명 (SPDLOG_* 매크로가
 //   __FILE__/__LINE__/함수명을 source_loc 로 캡처 → "어떤 cpp의 몇 번째 줄,
 //   어느 함수가 남겼는가"를 로그만으로 추적).
-constexpr const char* Pattern =
+constexpr const char* kPattern =
     "[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [tid=%t] [%s:%# %!] %v";
 
 // Init/Shutdown 1회 짝 보장(리뷰 E). 중복 Init 은 thread_pool 을 교체해
@@ -70,11 +70,11 @@ void Init(const std::string& file_path, Level min_level, bool console) {
   }
 
   // 백그라운드 스레드 1개 = MPSC(N개 io 스레드 producer → 1 소비자). CLAUDE.md 계약.
-  spdlog::init_thread_pool(QueueSlots, 1);
+  spdlog::init_thread_pool(kQueueSlots, 1);
 
   std::vector<spdlog::sink_ptr> sinks;
   sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-      file_path, MaxFileBytes, MaxFiles));
+      file_path, kMaxFileBytes, kMaxFiles));
   if (console) {
     sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
   }
@@ -86,7 +86,7 @@ void Init(const std::string& file_path, Level min_level, bool console) {
       spdlog::async_overflow_policy::block);
 
   logger->set_level(ToSpd(min_level));
-  logger->set_pattern(Pattern);
+  logger->set_pattern(kPattern);
   // WARN/ERROR 는 flush 를 큐에 post(백그라운드가 처리) — async 라 '즉시'가 아니다.
   //   정상 종료 경로는 Shutdown 이 큐를 drain 한다. FATAL 만은 프로세스가 직후
   //   죽을 수 있어 아래 동기 로거로 별도 처리한다(리뷰 B 해소).
@@ -101,7 +101,7 @@ void Init(const std::string& file_path, Level min_level, bool console) {
   auto fatal =
       std::make_shared<spdlog::logger>("fatal", sinks.begin(), sinks.end());
   fatal->set_level(spdlog::level::critical);
-  fatal->set_pattern(Pattern);
+  fatal->set_pattern(kPattern);
   fatal->flush_on(spdlog::level::critical);
   {
     std::lock_guard<std::mutex> lk(g_fatal_mtx);

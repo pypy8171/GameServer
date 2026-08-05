@@ -45,20 +45,20 @@ class Reader : public std::enable_shared_from_this<Reader> {
 
  private:
   void ReadHeader() {
-    header_.assign(HeaderSize, 0);
+    header_.assign(kHeaderSize, 0);
     auto self = shared_from_this();
-    asio::async_read(socket_, asio::buffer(header_.data(), HeaderSize),
+    asio::async_read(socket_, asio::buffer(header_.data(), kHeaderSize),
                      [this, self](std::error_code ec, std::size_t) {
                        if (ec) {
                          return;  // 연결 종료 → 읽기 루프 종료
                        }
                        PacketHeader h;
-                       std::memcpy(&h, header_.data(), HeaderSize);
-                       if (h.size < HeaderSize || h.size > MaxPacketSize) {
+                       std::memcpy(&h, header_.data(), kHeaderSize);
+                       if (h.size < kHeaderSize || h.size > kMaxPacketSize) {
                          return;
                        }
                        ReadBody(h.id,
-                                static_cast<uint16_t>(h.size - HeaderSize));
+                                static_cast<uint16_t>(h.size - kHeaderSize));
                      });
   }
 

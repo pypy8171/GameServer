@@ -71,8 +71,8 @@ void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
     return;
   }
 
-  const uint8_t* body = packet + HeaderSize;
-  const uint16_t body_size = static_cast<uint16_t>(packet_size - HeaderSize);
+  const uint8_t* body = packet + kHeaderSize;
+  const uint16_t body_size = static_cast<uint16_t>(packet_size - kHeaderSize);
   it->second(session, body, body_size);
 }
 

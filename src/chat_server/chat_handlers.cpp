@@ -38,7 +38,7 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
       [&registry](const SessionPtr& s, const ChatJoinRequest& msg) {
         ChatJoinResponse res;
         const std::string& nick = msg.nickname();
-        if (nick.empty() || nick.size() > MaxChatTextBytes) {
+        if (nick.empty() || nick.size() > kMaxChatTextBytes) {
           res.set_ok(false);
           res.set_reason("invalid nickname");
           s->Send(MakePacket(PacketId::ChatJoinResponse, res));
@@ -64,7 +64,7 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
         if (!s->authenticated()) {
           return;  // 신원 없는 발화는 무시
         }
-        if (msg.text().empty() || msg.text().size() > MaxChatTextBytes) {
+        if (msg.text().empty() || msg.text().size() > kMaxChatTextBytes) {
           return;
         }
         ChatNotify out;

@@ -47,15 +47,15 @@ void EncodeHeader(uint8_t* dst, const PacketHeader& header) {
 std::vector<uint8_t> MakePacket(PacketId id,
                                 const google::protobuf::MessageLite& body) {
   const size_t body_size = body.ByteSizeLong();
-  const size_t total = HeaderSize + body_size;
-  if (total > MaxPacketSize) {
-    throw std::length_error("MakePacket: packet exceeds MaxPacketSize");
+  const size_t total = kHeaderSize + body_size;
+  if (total > kMaxPacketSize) {
+    throw std::length_error("MakePacket: packet exceeds kMaxPacketSize");
   }
 
   std::vector<uint8_t> buf(total);
   EncodeHeader(buf.data(), PacketHeader{static_cast<uint16_t>(total),
                                         static_cast<uint16_t>(id)});
-  body.SerializeToArray(buf.data() + HeaderSize, static_cast<int>(body_size));
+  body.SerializeToArray(buf.data() + kHeaderSize, static_cast<int>(body_size));
   return buf;
 }
 
