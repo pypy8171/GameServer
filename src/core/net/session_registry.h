@@ -9,7 +9,8 @@
 
 #include "core/net/session.h"  // SessionId, SessionPtr
 
-namespace game::core {
+namespace game::core
+{
 
 // 살아있는 세션 집합. 게임 무관 코어 프리미티브.
 //
@@ -22,7 +23,8 @@ namespace game::core {
 //
 // 팬아웃(ADR-G): Broadcast 는 프레임을 수신자마다 복사(copy-per-recipient)한다.
 //   Session::Send 가 값으로 받으므로 각 호출이 세션별 단일소유 버퍼로 복사된다.
-class SessionRegistry {
+class SessionRegistry
+{
  public:
   void Add(const SessionPtr& s);
   void Remove(SessionId id);  // 멱등: 없는 id 는 no-op

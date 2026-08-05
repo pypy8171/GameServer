@@ -3,7 +3,8 @@
 #include <string>
 #include <string_view>
 
-namespace game::logic {
+namespace game::logic
+{
 
 // ------------------------------------------------------------
 //  비밀번호 해시 (ADR-P)

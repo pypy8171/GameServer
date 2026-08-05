@@ -6,7 +6,8 @@
 
 #include <google/protobuf/message_lite.h>
 
-namespace game::core {
+namespace game::core
+{
 
 // ------------------------------------------------------------
 //  패킷 프레이밍
@@ -15,7 +16,8 @@ namespace game::core {
 //  header.size 로 한 패킷의 경계를 판정한다.
 // ------------------------------------------------------------
 #pragma pack(push, 1)
-struct PacketHeader {
+struct PacketHeader
+{
   uint16_t size;  // 헤더 포함 전체 바이트 수
   uint16_t id;    // PacketId
 };
@@ -31,7 +33,8 @@ static_assert(sizeof(PacketHeader) == 4, "PacketHeader must be 4 bytes");
 //     게임 C->S : [0x8000, 0x9000)  (예: MoveRequest)
 //     게임 S->C : [0x9000, 0xA000)  (예: WorldEnteredNotify, MoveNotify)
 // echo(1,2)는 M0 레거시로 대역 밖(방향 검증 예외).
-enum class PacketId : uint16_t {
+enum class PacketId : uint16_t
+{
   Invalid = 0,
 
   // --- Echo (M0 수직 슬라이스, 레거시) ---
@@ -65,10 +68,12 @@ constexpr size_t kMaxChatTextBytes = 1024;    // 채팅 본문 상한
 
 // 방향 판정. 디스패처가 수신 패킷이 S->C 대역이면 거부한다(방향 위반).
 // 표준 대역(인프라)과 0x8000+ 게임 확장 대역을 모두 포함한다.
-constexpr bool IsClientToServer(uint16_t id) {
+constexpr bool IsClientToServer(uint16_t id)
+{
   return (id >= 0x1000 && id < 0x2000) || (id >= 0x8000 && id < 0x9000);
 }
-constexpr bool IsServerToClient(uint16_t id) {
+constexpr bool IsServerToClient(uint16_t id)
+{
   return (id >= 0x2000 && id < 0x3000) || (id >= 0x9000 && id < 0xA000);
 }
 

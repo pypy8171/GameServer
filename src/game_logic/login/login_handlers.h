@@ -7,17 +7,20 @@
 #include "game_logic/account/account_repository.h"  // IAccountRepository, PlayerId
 #include "login.pb.h"
 
-namespace game::core {
+namespace game::core
+{
 class Dispatcher;
 class Session;
 }
 
-namespace game::logic {
+namespace game::logic
+{
 
 // 로그인 결정의 순수 결과(세션·IO 무관 — 테스트 대상).
 //   authenticate: 세션에 신원을 귀속시킬지. true 면 principal 이 유효.
 //   response: 클라이언트로 돌려줄 LoginResponse.
-struct LoginOutcome {
+struct LoginOutcome
+{
   bool authenticate = false;
   std::string principal;  // authenticate=true 일 때의 신원(계정 id)
   game::proto::LoginResponse response;

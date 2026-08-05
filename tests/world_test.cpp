@@ -9,7 +9,8 @@
 using namespace game::logic;
 using game::core::SessionId;
 
-namespace {
+namespace
+{
 
 // World 는 io_context 로 strand 를 만들지만, 순수 메서드(Enter/Leave/Count/Find)
 //   테스트는 단일스레드에서 직접 호출한다(월드 strand 위 호출과 동치). io 는
@@ -21,7 +22,8 @@ asio::io_context g_io;
 // ---- 입장(Enter) ----
 
 // 새 세션 입장 → 원점 스폰으로 엔티티 삽입, player_id 보존, 스냅샷 반환.
-TEST(World, EnterSpawnsPlayerAtOrigin) {
+TEST(World, EnterSpawnsPlayerAtOrigin)
+{
   World world(g_io);
   const auto spawn = world.Enter(/*sid=*/1, /*pid=*/42);
   ASSERT_TRUE(spawn.has_value());
@@ -32,7 +34,8 @@ TEST(World, EnterSpawnsPlayerAtOrigin) {
 }
 
 // 같은 SessionId 재입장은 중복 가드로 무시 → nullopt, 카운트 불변.
-TEST(World, DuplicateEnterIsRejected) {
+TEST(World, DuplicateEnterIsRejected)
+{
   World world(g_io);
   ASSERT_TRUE(world.Enter(1, 42).has_value());
   const auto again = world.Enter(1, 99);  // 같은 sid, 다른 pid
@@ -44,7 +47,8 @@ TEST(World, DuplicateEnterIsRejected) {
 }
 
 // 서로 다른 세션은 독립적으로 입장한다.
-TEST(World, DistinctSessionsCoexist) {
+TEST(World, DistinctSessionsCoexist)
+{
   World world(g_io);
   world.Enter(1, 42);
   world.Enter(2, 43);
@@ -56,7 +60,8 @@ TEST(World, DistinctSessionsCoexist) {
 // ---- 퇴장(Leave) ----
 
 // 입장한 세션 퇴장 → 제거, 카운트 감소, true 반환.
-TEST(World, LeaveRemovesPlayer) {
+TEST(World, LeaveRemovesPlayer)
+{
   World world(g_io);
   world.Enter(1, 42);
   EXPECT_TRUE(world.Leave(1));
@@ -65,7 +70,8 @@ TEST(World, LeaveRemovesPlayer) {
 }
 
 // 입장한 적 없는 세션 퇴장은 멱등 no-op → false.
-TEST(World, LeaveUnknownSessionIsNoop) {
+TEST(World, LeaveUnknownSessionIsNoop)
+{
   World world(g_io);
   EXPECT_FALSE(world.Leave(777));
   EXPECT_EQ(world.Count(), 0u);
@@ -74,7 +80,8 @@ TEST(World, LeaveUnknownSessionIsNoop) {
 // ---- 스냅샷 → 알림 매핑(순수 빌더) ----
 
 // PlayerEntity 필드가 WorldEnteredNotify 로 그대로 매핑된다.
-TEST(World, MakeWorldEnteredNotifyMapsEntityFields) {
+TEST(World, MakeWorldEnteredNotifyMapsEntityFields)
+{
   const PlayerEntity e{/*id=*/7, /*x=*/1.5f, /*y=*/-2.5f};
   const game::proto::WorldEnteredNotify n = MakeWorldEnteredNotify(e);
   EXPECT_EQ(n.player_id(), 7u);

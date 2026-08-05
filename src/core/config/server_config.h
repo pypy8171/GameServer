@@ -5,7 +5,8 @@
 #include <string_view>
 #include <unordered_map>
 
-namespace game::core {
+namespace game::core
+{
 
 // 기동 설정 — 최소형 txt "key:value" 파서.
 //   - 한 줄에 `key : value`(콜론 구분). 앞뒤 공백 트림.
@@ -13,7 +14,8 @@ namespace game::core {
 //     구분자(':') 없는 줄은 건너뜀(크래시 금지).
 //   - 중복 키는 마지막 값이 이긴다. 미지정 키는 조회 시 준 기본값(fallback).
 // 게임 무관 인프라라 코어에 둔다. 조회는 실패해도 예외를 던지지 않고 fallback.
-class ServerConfig {
+class ServerConfig
+{
  public:
   // 텍스트에서 직접 파싱(파일 없이 테스트 가능).
   static ServerConfig Parse(std::string_view text);

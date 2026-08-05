@@ -27,7 +27,8 @@
 using namespace game::core;
 using namespace game::chat;
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
 #if defined(_WIN32)
   SetConsoleOutputCP(CP_UTF8);  // 콘솔 로그 한글 깨짐 방지 (소스는 /utf-8)
   SetConsoleCP(CP_UTF8);
@@ -39,11 +40,15 @@ int main(int argc, char** argv) {
   bool cfg_ok = false;
   const ServerConfig cfg = ServerConfig::FromFile("chat_server.cfg", &cfg_ok);
   if (cfg_ok) port = cfg.GetUInt16("port", port);
-  if (argc > 1) {
+  if (argc > 1)
+  {
     uint16_t cli = 0;
-    if (ServerConfig::ParseUInt16(argv[1], cli)) {
+    if (ServerConfig::ParseUInt16(argv[1], cli))
+    {
       port = cli;
-    } else {
+    }
+    else
+    {
       std::cerr << "[chat] invalid port arg '" << argv[1] << "', using " << port
                 << "\n";
     }
@@ -62,11 +67,14 @@ int main(int argc, char** argv) {
   //   worker try/catch 진입 이전이라 감싸지 않으면 로그 없이 terminate 한다(리뷰 C).
   //   → FATAL 로 원인을 남기고 큐를 flush 한 뒤 정상 종료 코드로 나간다.
   std::optional<Server> server;
-  try {
+  try
+  {
     server.emplace(io, port, dispatcher, registry);
     server->set_on_disconnect(MakeDisconnectHook(registry));
     server->Start();
-  } catch (const std::exception& e) {
+  }
+  catch (const std::exception& e)
+  {
     LOG_FATAL("server bind/start failed on port {}: {}", port, e.what());
     log::Shutdown();
     google::protobuf::ShutdownProtobufLibrary();
@@ -83,13 +91,19 @@ int main(int argc, char** argv) {
   // io.run() 워커 가드(F3): 핸들러에서 예외가 새면 워커 스레드가 조용히 죽어
   //   CCU 처리 용량이 크래시 없이 줄어든다. 로깅 후 run()에 재진입해 워커를 살린다.
   auto worker = [&io] {
-    for (;;) {
-      try {
+    for (;;)
+    {
+      try
+      {
         io.run();
         return;  // 정상 종료(io.stop) — 루프 탈출
-      } catch (const std::exception& e) {
+      }
+      catch (const std::exception& e)
+      {
         LOG_ERROR("worker exception: {}", e.what());
-      } catch (...) {
+      }
+      catch (...)
+      {
         LOG_ERROR("worker exception: (unknown)");
       }
     }
@@ -97,11 +111,13 @@ int main(int argc, char** argv) {
 
   std::vector<std::thread> pool;
   pool.reserve(threads > 0 ? threads - 1 : 0);
-  for (unsigned i = 1; i < threads; ++i) {
+  for (unsigned i = 1; i < threads; ++i)
+  {
     pool.emplace_back(worker);
   }
   worker();
-  for (auto& t : pool) {
+  for (auto& t : pool)
+  {
     t.join();
   }
 

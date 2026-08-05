@@ -16,15 +16,18 @@ using namespace game::core;
 using namespace game::logic;
 using game::proto::LoginRequest;
 
-namespace {
+namespace
+{
 
-InMemoryAccountRepository MakeRepo() {
+InMemoryAccountRepository MakeRepo()
+{
   InMemoryAccountRepository repo;
   repo.AddAccount("alice", "s3cret", /*player_id=*/42);
   return repo;
 }
 
-LoginRequest MakeReq(const std::string& account, const std::string& password) {
+LoginRequest MakeReq(const std::string& account, const std::string& password)
+{
   LoginRequest req;
   req.set_account(account);
   req.set_password(password);
@@ -32,7 +35,8 @@ LoginRequest MakeReq(const std::string& account, const std::string& password) {
 }
 
 SessionPtr MakeDummySession(asio::io_context& io, Dispatcher& d,
-                            SessionRegistry& r) {
+                            SessionRegistry& r)
+{
   asio::ip::tcp::socket sock(io);
   return std::make_shared<Session>(std::move(sock), d, r);
 }
@@ -42,7 +46,8 @@ SessionPtr MakeDummySession(asio::io_context& io, Dispatcher& d,
 // ---- 순수 결정(EvaluateLogin) ----
 
 // 유효 자격증명 → 인증하고 principal=계정, 응답 ok + player_id.
-TEST(EvaluateLogin, ValidCredentialsAuthenticateAndReturnPlayerId) {
+TEST(EvaluateLogin, ValidCredentialsAuthenticateAndReturnPlayerId)
+{
   const auto repo = MakeRepo();
   const LoginOutcome out = EvaluateLogin(repo, MakeReq("alice", "s3cret"));
   EXPECT_TRUE(out.authenticate);
@@ -52,7 +57,8 @@ TEST(EvaluateLogin, ValidCredentialsAuthenticateAndReturnPlayerId) {
 }
 
 // 틀린 비번 → 인증하지 않고 응답 ok=false + 사유.
-TEST(EvaluateLogin, InvalidCredentialsDoNotAuthenticate) {
+TEST(EvaluateLogin, InvalidCredentialsDoNotAuthenticate)
+{
   const auto repo = MakeRepo();
   const LoginOutcome out = EvaluateLogin(repo, MakeReq("alice", "wrong"));
   EXPECT_FALSE(out.authenticate);
@@ -61,7 +67,8 @@ TEST(EvaluateLogin, InvalidCredentialsDoNotAuthenticate) {
 }
 
 // 빈 자격증명 → 저장소 조회 없이 즉시 거부.
-TEST(EvaluateLogin, EmptyCredentialsRejectedWithoutAuth) {
+TEST(EvaluateLogin, EmptyCredentialsRejectedWithoutAuth)
+{
   const auto repo = MakeRepo();
   EXPECT_FALSE(EvaluateLogin(repo, MakeReq("", "s3cret")).authenticate);
   EXPECT_FALSE(EvaluateLogin(repo, MakeReq("alice", "")).authenticate);
@@ -70,7 +77,8 @@ TEST(EvaluateLogin, EmptyCredentialsRejectedWithoutAuth) {
 // ---- 핸들러 배선(RegisterLoginHandlers) ----
 
 // 미인증 세션이 LoginRequest 를 보내면(preauth allowlist) 유효 시 세션이 인증된다.
-TEST(RegisterLoginHandlers, ValidLoginAuthenticatesSessionThroughDispatcher) {
+TEST(RegisterLoginHandlers, ValidLoginAuthenticatesSessionThroughDispatcher)
+{
   asio::io_context io;
   SessionRegistry reg;
   Dispatcher d;
@@ -87,7 +95,8 @@ TEST(RegisterLoginHandlers, ValidLoginAuthenticatesSessionThroughDispatcher) {
 }
 
 // 틀린 자격증명은 세션을 인증하지 않는다(게이트는 통과하되 인증 실패).
-TEST(RegisterLoginHandlers, InvalidLoginLeavesSessionUnauthenticated) {
+TEST(RegisterLoginHandlers, InvalidLoginLeavesSessionUnauthenticated)
+{
   asio::io_context io;
   SessionRegistry reg;
   Dispatcher d;
@@ -104,7 +113,8 @@ TEST(RegisterLoginHandlers, InvalidLoginLeavesSessionUnauthenticated) {
 // ---- 인증 성공 후속 훅(OnAuthenticated) — 월드 입장 배선 seam ----
 
 // 유효 로그인 → 훅이 정확히 1회, 발급된 player_id 와 함께 호출된다.
-TEST(RegisterLoginHandlers, OnAuthenticatedFiresOnSuccessWithPlayerId) {
+TEST(RegisterLoginHandlers, OnAuthenticatedFiresOnSuccessWithPlayerId)
+{
   asio::io_context io;
   SessionRegistry reg;
   Dispatcher d;
@@ -126,7 +136,8 @@ TEST(RegisterLoginHandlers, OnAuthenticatedFiresOnSuccessWithPlayerId) {
 }
 
 // 실패 로그인 → 훅은 호출되지 않는다(인증되지 않은 세션은 월드에 입장 안 함).
-TEST(RegisterLoginHandlers, OnAuthenticatedDoesNotFireOnFailure) {
+TEST(RegisterLoginHandlers, OnAuthenticatedDoesNotFireOnFailure)
+{
   asio::io_context io;
   SessionRegistry reg;
   Dispatcher d;

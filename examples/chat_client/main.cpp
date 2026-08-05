@@ -23,10 +23,12 @@
 using namespace game::core;
 using namespace game::proto;
 
-namespace {
+namespace
+{
 // Windows 콘솔 기본 코드페이지(CP949)가 UTF-8 리터럴 바이트를 깨뜨린다.
 //   소스는 /utf-8 로 UTF-8 저장 → 콘솔 입출력 CP도 UTF-8로 맞춰야 한글이 안 깨진다.
-void EnableUtf8Console() {
+void EnableUtf8Console()
+{
 #if defined(_WIN32)
   SetConsoleOutputCP(CP_UTF8);
   SetConsoleCP(CP_UTF8);
@@ -34,27 +36,37 @@ void EnableUtf8Console() {
 }
 }  // namespace
 
-namespace {
+namespace
+{
 
 // 서버로부터 들어오는 프레임을 계속 읽어 출력한다.
-class Reader : public std::enable_shared_from_this<Reader> {
+class Reader : public std::enable_shared_from_this<Reader>
+{
  public:
-  explicit Reader(asio::ip::tcp::socket& socket) : socket_(socket) {}
+  explicit Reader(asio::ip::tcp::socket& socket) : socket_(socket)
+  {
+  }
 
-  void Start() { ReadHeader(); }
+  void Start()
+  {
+    ReadHeader();
+  }
 
  private:
-  void ReadHeader() {
+  void ReadHeader()
+  {
     header_.assign(kHeaderSize, 0);
     auto self = shared_from_this();
     asio::async_read(socket_, asio::buffer(header_.data(), kHeaderSize),
                      [this, self](std::error_code ec, std::size_t) {
-                       if (ec) {
+                       if (ec)
+                       {
                          return;  // 연결 종료 → 읽기 루프 종료
                        }
                        PacketHeader h;
                        std::memcpy(&h, header_.data(), kHeaderSize);
-                       if (h.size < kHeaderSize || h.size > kMaxPacketSize) {
+                       if (h.size < kHeaderSize || h.size > kMaxPacketSize)
+                       {
                          return;
                        }
                        ReadBody(h.id,
@@ -62,12 +74,14 @@ class Reader : public std::enable_shared_from_this<Reader> {
                      });
   }
 
-  void ReadBody(uint16_t id, uint16_t body_size) {
+  void ReadBody(uint16_t id, uint16_t body_size)
+  {
     body_.assign(body_size, 0);
     auto self = shared_from_this();
     asio::async_read(socket_, asio::buffer(body_.data(), body_size),
                      [this, self, id](std::error_code ec, std::size_t) {
-                       if (ec) {
+                       if (ec)
+                       {
                          return;
                        }
                        Handle(id, body_.data(),
@@ -76,14 +90,20 @@ class Reader : public std::enable_shared_from_this<Reader> {
                      });
   }
 
-  void Handle(uint16_t id, const uint8_t* body, int size) {
-    switch (static_cast<PacketId>(id)) {
+  void Handle(uint16_t id, const uint8_t* body, int size)
+  {
+    switch (static_cast<PacketId>(id))
+    {
       case PacketId::ChatJoinResponse: {
         ChatJoinResponse r;
-        if (r.ParseFromArray(body, size)) {
-          if (r.ok()) {
+        if (r.ParseFromArray(body, size))
+        {
+          if (r.ok())
+          {
             std::cout << "* 입장 완료. 메시지를 입력하세요.\n";
-          } else {
+          }
+          else
+          {
             std::cout << "* 입장 실패: " << r.reason() << '\n';
           }
         }
@@ -91,14 +111,16 @@ class Reader : public std::enable_shared_from_this<Reader> {
       }
       case PacketId::ChatNotify: {
         ChatNotify b;
-        if (b.ParseFromArray(body, size)) {
+        if (b.ParseFromArray(body, size))
+        {
           std::cout << b.sender() << ": " << b.text() << '\n';
         }
         break;
       }
       case PacketId::SystemNotify: {
         SystemNotify s;
-        if (s.ParseFromArray(body, size)) {
+        if (s.ParseFromArray(body, size))
+        {
           std::cout << "* " << s.text() << '\n';
         }
         break;
@@ -115,23 +137,28 @@ class Reader : public std::enable_shared_from_this<Reader> {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
   EnableUtf8Console();
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   const std::string port = (argc > 1) ? argv[1] : "7777";
   std::string nickname = (argc > 2) ? argv[2] : "";
-  if (nickname.empty()) {
+  if (nickname.empty())
+  {
     std::cout << "닉네임: ";
     std::getline(std::cin, nickname);
   }
 
   asio::io_context io;
   asio::ip::tcp::socket socket(io);
-  try {
+  try
+  {
     asio::ip::tcp::resolver resolver(io);
     asio::connect(socket, resolver.resolve("127.0.0.1", port));
-  } catch (const std::exception& e) {
+  }
+  catch (const std::exception& e)
+  {
     std::cerr << "연결 실패: " << e.what() << '\n';
     return 1;
   }
@@ -148,15 +175,18 @@ int main(int argc, char** argv) {
 
   // 메인 스레드: stdin 한 줄 = 한 발화.
   std::string line;
-  while (std::getline(std::cin, line)) {
-    if (line.empty()) {
+  while (std::getline(std::cin, line))
+  {
+    if (line.empty())
+    {
       continue;
     }
     ChatSayRequest say;
     say.set_text(line);
     std::error_code ec;
     asio::write(socket, asio::buffer(MakePacket(PacketId::ChatSayRequest, say)), ec);
-    if (ec) {
+    if (ec)
+    {
       break;
     }
   }

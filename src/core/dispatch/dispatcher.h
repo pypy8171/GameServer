@@ -10,7 +10,8 @@
 #include "core/packet/packet.h"
 #include "core/serialize/serializer.h"
 
-namespace game::core {
+namespace game::core
+{
 
 class Session;
 using SessionPtr = std::shared_ptr<Session>;
@@ -28,7 +29,8 @@ using TypedHandler = std::function<void(const SessionPtr&, const TMsg&)>;
 // 서버 기동 시 한 번 Register 하고, 이후 읽기 전용으로만 조회하므로 락 불필요.
 // (자료구조: unordered_map 유지 — PacketId 가 방향대역+게임확장으로 sparse 라
 //  dense array 는 부적합. ADR-H 참조.)
-class Dispatcher {
+class Dispatcher
+{
  public:
   // 기본 직렬화는 Protobuf. 다른 포맷으로 교체하려면 커스텀 ISerializer 를 주입한다.
   // 주입 시 그 serializer 는 Dispatcher 보다 오래 살아야 한다(참조 보관).
@@ -54,13 +56,16 @@ class Dispatcher {
   // 타입드 등록: 등록 지점에서 TMsg 로 역직렬화한 뒤 핸들러를 호출한다.
   // 파싱 실패면 핸들러를 부르지 않고 drop(빌드 무관) + 관측 로그(ADR-G).
   template <class TMsg>
-  void RegisterTyped(PacketId id, TypedHandler<TMsg> handler) {
+  void RegisterTyped(PacketId id, TypedHandler<TMsg> handler)
+  {
     const uint16_t raw = static_cast<uint16_t>(id);
     handlers_[raw] = [this, raw, h = std::move(handler)](
                          const SessionPtr& s, const uint8_t* body,
-                         uint16_t size) {
+                         uint16_t size)
+    {
       TMsg msg;
-      if (!serializer_.Parse(body, size, msg)) {
+      if (!serializer_.Parse(body, size, msg))
+      {
         OnParseFailed(raw);  // ADR-G: 빌드 무관 drop + 관측
         return;
       }

@@ -9,11 +9,14 @@
 #include "core/net/session.h"
 #include "core/packet/packet.h"
 
-namespace game::core {
+namespace game::core
+{
 
-namespace {
+namespace
+{
 // "ChatSayRequest(id=0x1002)" 형태로 포맷 — 로그에서 패킷을 한눈에 식별.
-std::string DescribePacket(uint16_t id) {
+std::string DescribePacket(uint16_t id)
+{
   std::ostringstream os;
   os << PacketIdName(id) << "(id=0x" << std::hex << std::uppercase
      << std::setw(4) << std::setfill('0') << id << ')';
@@ -21,34 +24,42 @@ std::string DescribePacket(uint16_t id) {
 }
 }  // namespace
 
-const ISerializer& Dispatcher::DefaultSerializer() {
+const ISerializer& Dispatcher::DefaultSerializer()
+{
   static const ProtobufSerializer kDefault;
   return kDefault;
 }
 
 Dispatcher::Dispatcher(const ISerializer& serializer)
-    : serializer_(serializer) {}
+    : serializer_(serializer)
+{
+}
 
-void Dispatcher::Register(PacketId id, PacketHandler handler) {
+void Dispatcher::Register(PacketId id, PacketHandler handler)
+{
   handlers_[static_cast<uint16_t>(id)] = std::move(handler);
 }
 
-void Dispatcher::AllowUnauthenticated(PacketId id) {
+void Dispatcher::AllowUnauthenticated(PacketId id)
+{
   preauth_.insert(static_cast<uint16_t>(id));
 }
 
-void Dispatcher::OnParseFailed(uint16_t id) const {
+void Dispatcher::OnParseFailed(uint16_t id) const
+{
   // ADR-G: 역직렬화 실패 = 빌드 무관 drop. 관측을 위해 로그(rate-limit 은 M2).
   LOG_WARN("parse failed for {} — dropped", DescribePacket(id));
 }
 
 void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
-                          uint16_t packet_size) const {
+                          uint16_t packet_size) const
+{
   // 경계 검증(N-2): 헤더보다 짧은 조각은 DecodeHeader 의 오버리드와
   // 아래 `packet_size - kHeaderSize` 언더플로(uint16 wrap → 거대 body_size)를
   // 유발한다. 프레이밍 계층이 완전 패킷만 넘겨야 하나, 디스패처도 신뢰 경계로서
   // 방어적으로 재검증한다(size 필드 불신 규율, CLAUDE.md 동시성/경계 계약).
-  if (packet_size < kHeaderSize) {
+  if (packet_size < kHeaderSize)
+  {
     LOG_WARN("undersized packet ({} bytes < header {}) dropped", packet_size,
              kHeaderSize);
     return;
@@ -57,7 +68,8 @@ void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
   const PacketHeader header = DecodeHeader(packet);
 
   // 방향 검증(ADR-D): S->C 대역 패킷을 서버가 수신 = 프로토콜 위반 → 드롭.
-  if (IsServerToClient(header.id)) {
+  if (IsServerToClient(header.id))
+  {
     LOG_WARN("wrong-direction (S->C) {} dropped", DescribePacket(header.id));
     return;
   }
@@ -66,7 +78,8 @@ void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
   // 패킷을 역직렬화조차 못 하게 여기서 drop 한다(파싱 이전 미들웨어). 이로써
   // "핸들러가 파싱 후에야 인증 검사"하던 M1 사각지대를 구조적으로 닫는다.
   // (session 이 null 인 저수준 테스트 경로는 게이트를 건너뛴다 — 실서버는 항상 세션 보유)
-  if (session && !session->authenticated() && !preauth_.count(header.id)) {
+  if (session && !session->authenticated() && !preauth_.count(header.id))
+  {
     // 이 로그는 인증·핸들러 이전 단계라 미인증 연결만으로 증폭될 수 있다.
     // rate-limit 은 unhandled/parse-fail 로그와 함께 M2 로 이월(ADR-G 와 동일 규율).
     LOG_WARN("unauthenticated {} from id={} dropped (not in preauth allowlist)",
@@ -75,7 +88,8 @@ void Dispatcher::Dispatch(const SessionPtr& session, const uint8_t* packet,
   }
 
   auto it = handlers_.find(header.id);
-  if (it == handlers_.end()) {
+  if (it == handlers_.end())
+  {
     LOG_WARN("unhandled packet {} (no handler registered)",
              DescribePacket(header.id));
     return;

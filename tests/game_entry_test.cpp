@@ -26,28 +26,33 @@ using namespace game::logic;
 using namespace game::proto;
 using asio::ip::tcp;
 
-namespace {
+namespace
+{
 
 constexpr uint16_t TestPort = 39218;
 
-struct Frame {
+struct Frame
+{
   uint16_t id;
   std::vector<uint8_t> body;
 };
 
-Frame ReadFrame(tcp::socket& s) {
+Frame ReadFrame(tcp::socket& s)
+{
   std::vector<uint8_t> hdr(kHeaderSize);
   asio::read(s, asio::buffer(hdr.data(), kHeaderSize));
   PacketHeader h;
   std::memcpy(&h, hdr.data(), kHeaderSize);
   std::vector<uint8_t> body(h.size - kHeaderSize);
-  if (!body.empty()) {
+  if (!body.empty())
+  {
     asio::read(s, asio::buffer(body.data(), body.size()));
   }
   return Frame{h.id, std::move(body)};
 }
 
-tcp::socket Connect(asio::io_context& io) {
+tcp::socket Connect(asio::io_context& io)
+{
   tcp::socket sock(io);
   tcp::resolver resolver(io);
   asio::connect(sock, resolver.resolve("127.0.0.1", std::to_string(TestPort)));
@@ -59,7 +64,8 @@ tcp::socket Connect(asio::io_context& io) {
 // 유효 로그인 → LoginResponse(ok, player_id) 직후 WorldEnteredNotify(스폰)를 받는다.
 //   와이어 순서: 핸들러가 LoginResponse 를 먼저 큐잉하고, 성공 훅이 World strand 로
 //   진입해 WorldEnteredNotify 를 나중에 큐잉하므로 세션 send 큐에서 이 순서가 보장된다.
-TEST(GameEntry, LoginEntersWorldAndReceivesSpawn) {
+TEST(GameEntry, LoginEntersWorldAndReceivesSpawn)
+{
   asio::io_context server_io;
   SessionRegistry registry;
   InMemoryAccountRepository accounts;

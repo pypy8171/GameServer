@@ -11,14 +11,17 @@
 #include "core/net/session_registry.h"
 #include "core/packet/packet.h"
 
-namespace game::chat {
+namespace game::chat
+{
 
 using namespace game::core;
 using namespace game::proto;
 
-namespace {
+namespace
+{
 
-std::vector<uint8_t> MakeSystem(const std::string& text) {
+std::vector<uint8_t> MakeSystem(const std::string& text)
+{
   SystemNotify sys;
   sys.set_text(text);
   return MakePacket(PacketId::SystemNotify, sys);
@@ -26,7 +29,8 @@ std::vector<uint8_t> MakeSystem(const std::string& text) {
 
 }  // namespace
 
-void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
+void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry)
+{
   // ChatJoinRequest 는 신원을 확립하는 입장 패킷이다 → 미인증 게이트를 통과해야 한다.
   // (allowlist 에 없으면 미인증 세션의 ChatJoinRequest 가 drop 돼 아무도 입장할 수 없다) [ADR-J]
   dispatcher.AllowUnauthenticated(PacketId::ChatJoinRequest);
@@ -38,7 +42,8 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
       [&registry](const SessionPtr& s, const ChatJoinRequest& msg) {
         ChatJoinResponse res;
         const std::string& nick = msg.nickname();
-        if (nick.empty() || nick.size() > kMaxChatTextBytes) {
+        if (nick.empty() || nick.size() > kMaxChatTextBytes)
+        {
           res.set_ok(false);
           res.set_reason("invalid nickname");
           s->Send(MakePacket(PacketId::ChatJoinResponse, res));
@@ -61,10 +66,12 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
   dispatcher.RegisterTyped<ChatSayRequest>(
       PacketId::ChatSayRequest,
       [&registry](const SessionPtr& s, const ChatSayRequest& msg) {
-        if (!s->authenticated()) {
+        if (!s->authenticated())
+        {
           return;  // 신원 없는 발화는 무시
         }
-        if (msg.text().empty() || msg.text().size() > kMaxChatTextBytes) {
+        if (msg.text().empty() || msg.text().size() > kMaxChatTextBytes)
+        {
           return;
         }
         ChatNotify out;
@@ -78,9 +85,11 @@ void RegisterChatHandlers(Dispatcher& dispatcher, SessionRegistry& registry) {
 }
 
 std::function<void(const SessionPtr&)> MakeDisconnectHook(
-    SessionRegistry& registry) {
+    SessionRegistry& registry)
+{
   return [&registry](const SessionPtr& s) {
-    if (s->authenticated()) {
+    if (s->authenticated())
+    {
       LOG_INFO("[chat] {} 님 퇴장 (id={})", s->principal(), s->id());
       registry.Broadcast(MakeSystem(s->principal() + " 님이 퇴장했습니다."));
     }

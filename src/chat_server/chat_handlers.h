@@ -3,13 +3,15 @@
 #include <functional>
 #include <memory>
 
-namespace game::core {
+namespace game::core
+{
 class Dispatcher;
 class SessionRegistry;
 class Session;
 }  // namespace game::core
 
-namespace game::chat {
+namespace game::chat
+{
 
 // 채팅 릴레이 핸들러(ChatJoinRequest/ChatSayRequest)를 디스패처에 등록한다.
 // 데모/하네스 로직 — 게임 무관 코어(src/core) 밖에 격리한다.

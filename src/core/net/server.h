@@ -5,7 +5,8 @@
 #include <functional>
 #include <memory>
 
-namespace game::core {
+namespace game::core
+{
 
 class Dispatcher;
 class Session;
@@ -14,13 +15,15 @@ using SessionPtr = std::shared_ptr<Session>;
 
 // TCP Acceptor. 연결을 받을 때마다 Session 을 만들어 레지스트리에 등록하고
 // 읽기 루프를 시작한다.
-class Server {
+class Server
+{
  public:
   Server(asio::io_context& io, uint16_t port, const Dispatcher& dispatcher,
          SessionRegistry& registry);
 
   // 각 세션 종료 시 실행할 앱 훅(예: "X 퇴장" 브로드캐스트). 선택.
-  void set_on_disconnect(std::function<void(const SessionPtr&)> hook) {
+  void set_on_disconnect(std::function<void(const SessionPtr&)> hook)
+  {
     on_disconnect_ = std::move(hook);
   }
 

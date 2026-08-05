@@ -21,7 +21,8 @@
 
 #include <spdlog/spdlog.h>
 
-namespace game::core::log {
+namespace game::core::log
+{
 
 enum class Level { Debug, Info, Warn, Error, Fatal };
 
@@ -39,7 +40,8 @@ void Init(const std::string& file_path, Level min_level, bool console);
 //   Shutdown **완료 후**에는 동기 stdout 기본 로거로 복원되어 LOG_* 가 다시 안전하다.
 void Shutdown();
 
-namespace detail {
+namespace detail
+{
 // FATAL 동기 로거 스냅샷(shared_ptr 복사 → 사용 중 Shutdown 이 내려도 안전).
 //   Init 후 non-null, Shutdown 후/Init 전 null. LOG_FATAL 전용이니 직접 호출 금지.
 std::shared_ptr<spdlog::logger> FatalLogger();

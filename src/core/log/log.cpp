@@ -10,12 +10,16 @@
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
-namespace game::core::log {
+namespace game::core::log
+{
 
-namespace {
+namespace
+{
 
-spdlog::level::level_enum ToSpd(Level l) {
-  switch (l) {
+spdlog::level::level_enum ToSpd(Level l)
+{
+  switch (l)
+  {
     case Level::Debug: return spdlog::level::debug;
     case Level::Info:  return spdlog::level::info;
     case Level::Warn:  return spdlog::level::warn;
@@ -48,24 +52,29 @@ std::mutex g_fatal_mtx;
 
 }  // namespace
 
-namespace detail {
+namespace detail
+{
 
-std::shared_ptr<spdlog::logger> FatalLogger() {
+std::shared_ptr<spdlog::logger> FatalLogger()
+{
   std::lock_guard<std::mutex> lk(g_fatal_mtx);
   return g_fatal;  // shared_ptr 복사로 수명 고정 → 호출 중 Shutdown 이 내려도 안전
 }
 
 }  // namespace detail
 
-void Init(const std::string& file_path, Level min_level, bool console) {
-  if (g_inited.exchange(true)) {
+void Init(const std::string& file_path, Level min_level, bool console)
+{
+  if (g_inited.exchange(true))
+  {
     LOG_WARN("log::Init called more than once — ignoring");
     return;
   }
   namespace fs = std::filesystem;
   std::error_code ec;
   const fs::path p(file_path);
-  if (p.has_parent_path()) {
+  if (p.has_parent_path())
+  {
     fs::create_directories(p.parent_path(), ec);  // 실패해도 sink 생성에서 재판정
   }
 
@@ -75,7 +84,8 @@ void Init(const std::string& file_path, Level min_level, bool console) {
   std::vector<spdlog::sink_ptr> sinks;
   sinks.push_back(std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
       file_path, kMaxFileBytes, kMaxFiles));
-  if (console) {
+  if (console)
+  {
     sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
   }
 
@@ -109,8 +119,10 @@ void Init(const std::string& file_path, Level min_level, bool console) {
   }
 }
 
-void Shutdown() {
-  if (!g_inited.exchange(false)) {
+void Shutdown()
+{
+  if (!g_inited.exchange(false))
+  {
     return;  // Init 안 됐거나 이미 Shutdown — no-op (idempotent)
   }
   {

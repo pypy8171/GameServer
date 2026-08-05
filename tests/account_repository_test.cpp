@@ -5,7 +5,8 @@
 using namespace game::logic;
 
 // 등록된 계정 + 올바른 비번 → 인증 성공 + 부여된 player_id 반환.
-TEST(InMemoryAccountRepository, AcceptsCorrectCredentials) {
+TEST(InMemoryAccountRepository, AcceptsCorrectCredentials)
+{
   InMemoryAccountRepository repo;
   repo.AddAccount("alice", "s3cret", /*player_id=*/42);
 
@@ -15,7 +16,8 @@ TEST(InMemoryAccountRepository, AcceptsCorrectCredentials) {
 }
 
 // 틀린 비번 → 실패. 사유는 비어있지 않다.
-TEST(InMemoryAccountRepository, RejectsWrongPassword) {
+TEST(InMemoryAccountRepository, RejectsWrongPassword)
+{
   InMemoryAccountRepository repo;
   repo.AddAccount("alice", "s3cret", 42);
 
@@ -26,7 +28,8 @@ TEST(InMemoryAccountRepository, RejectsWrongPassword) {
 }
 
 // 없는 계정 → 실패. 사용자 열거 방지: 사유가 "틀린 비번"과 동일해야 한다.
-TEST(InMemoryAccountRepository, UnknownAccountIsIndistinguishableFromWrongPw) {
+TEST(InMemoryAccountRepository, UnknownAccountIsIndistinguishableFromWrongPw)
+{
   InMemoryAccountRepository repo;
   repo.AddAccount("alice", "s3cret", 42);
 

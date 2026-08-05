@@ -11,7 +11,8 @@
 
 using namespace game::core;
 
-TEST(Log, WritesLevelsAndFiltersBelowMin) {
+TEST(Log, WritesLevelsAndFiltersBelowMin)
+{
   namespace fs = std::filesystem;
   const std::string path = "logs/test_log.log";
   std::error_code ec;
@@ -47,7 +48,8 @@ TEST(Log, WritesLevelsAndFiltersBelowMin) {
 //   기록돼야 한다(리뷰 B 해소). 핵심 회귀 가드: **Shutdown 을 부르지 않고** LOG_FATAL
 //   리턴 직후 파일을 읽어 이미 FATAL 라인이 있는지 본다. async 로 되돌아가면(동기 flush
 //   제거) Shutdown 전이라 이 라인이 없어 테스트가 깨진다.
-TEST(Log, FatalIsFlushedSynchronouslyBeforeShutdown) {
+TEST(Log, FatalIsFlushedSynchronouslyBeforeShutdown)
+{
   namespace fs = std::filesystem;
   const std::string path = "logs/test_fatal.log";
   std::error_code ec;

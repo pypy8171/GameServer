@@ -9,7 +9,8 @@
 #include "game.pb.h"
 #include "game_logic/world/player_entity.h"
 
-namespace game::logic {
+namespace game::logic
+{
 
 // 게임 월드: 입장한 플레이어 엔티티의 소유자.
 //   [ADR-N] 엔티티는 SessionId 키로 World 가 소유한다. 코어 Session 은 엔티티를
@@ -17,7 +18,8 @@ namespace game::logic {
 //   [ADR-O] 엔티티 가변상태는 단일 World strand 안에서만 변경한다. 아래 순수
 //     메서드(Enter/Leave/Count/Find)는 '월드 strand 위에서 호출' 전제이며,
 //     Post* 래퍼가 그 strand 로 진입시킨다(다중 io 스레드에서의 맵 레이스 봉인).
-class World {
+class World
+{
  public:
   explicit World(asio::io_context& io);
 

@@ -10,17 +10,20 @@
 
 using namespace game::core;
 
-namespace {
+namespace
+{
 // 소켓을 열지 않은(unopened) 더미 세션. 등록/해제/카운트 로직만 검증한다
 // (Start/Send 등 실제 IO 는 호출하지 않는다).
 SessionPtr MakeDummySession(asio::io_context& io, Dispatcher& d,
-                            SessionRegistry& r) {
+                            SessionRegistry& r)
+{
   asio::ip::tcp::socket sock(io);
   return std::make_shared<Session>(std::move(sock), d, r);
 }
 }  // namespace
 
-TEST(SessionRegistry, AddRemoveCount) {
+TEST(SessionRegistry, AddRemoveCount)
+{
   asio::io_context io;
   Dispatcher d;
   SessionRegistry reg;
@@ -36,7 +39,8 @@ TEST(SessionRegistry, AddRemoveCount) {
   EXPECT_EQ(reg.Count(), 1u);
 }
 
-TEST(SessionRegistry, RemoveIsIdempotent) {
+TEST(SessionRegistry, RemoveIsIdempotent)
+{
   asio::io_context io;
   Dispatcher d;
   SessionRegistry reg;
@@ -49,7 +53,8 @@ TEST(SessionRegistry, RemoveIsIdempotent) {
   EXPECT_EQ(reg.Count(), 0u);
 }
 
-TEST(SessionRegistry, ReAddSameSessionKeepsOne) {
+TEST(SessionRegistry, ReAddSameSessionKeepsOne)
+{
   asio::io_context io;
   Dispatcher d;
   SessionRegistry reg;
@@ -60,7 +65,8 @@ TEST(SessionRegistry, ReAddSameSessionKeepsOne) {
   EXPECT_EQ(reg.Count(), 1u);
 }
 
-TEST(Session, IdsAreUniqueAndIdentitySetOnce) {
+TEST(Session, IdsAreUniqueAndIdentitySetOnce)
+{
   asio::io_context io;
   Dispatcher d;
   SessionRegistry reg;

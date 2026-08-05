@@ -11,7 +11,8 @@
 using namespace game::core;
 using namespace game::proto;
 
-TEST(Packet, MakePacketFramesHeaderAndRoundTrips) {
+TEST(Packet, MakePacketFramesHeaderAndRoundTrips)
+{
   EchoRequest req;
   req.set_message("ping");
   auto buf = MakePacket(PacketId::EchoRequest, req);
@@ -28,7 +29,8 @@ TEST(Packet, MakePacketFramesHeaderAndRoundTrips) {
   EXPECT_EQ(parsed.message(), "ping");
 }
 
-TEST(PacketHeader, WriteThenReadRoundTrips) {
+TEST(PacketHeader, WriteThenReadRoundTrips)
+{
   const PacketHeader h{/*size=*/1234, /*id=*/0x1002};
   uint8_t buf[kHeaderSize];
   EncodeHeader(buf, h);
@@ -39,7 +41,8 @@ TEST(PacketHeader, WriteThenReadRoundTrips) {
 
 // 와이어 포맷은 little-endian 으로 못박는다. 호스트 바이트오더에 의존하지
 // 않음을 바이트 단위로 검증 → D6/F4(엔디안 정규화) 회귀 방지.
-TEST(PacketHeader, SerializesLittleEndianOnWire) {
+TEST(PacketHeader, SerializesLittleEndianOnWire)
+{
   const PacketHeader h{/*size=*/0x3412, /*id=*/0x7856};
   uint8_t buf[kHeaderSize];
   EncodeHeader(buf, h);
@@ -49,7 +52,8 @@ TEST(PacketHeader, SerializesLittleEndianOnWire) {
   EXPECT_EQ(buf[3], 0x78);  // id   상위바이트
 }
 
-TEST(Packet, DirectionBandsClassifyChatIds) {
+TEST(Packet, DirectionBandsClassifyChatIds)
+{
   EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatJoinRequest)));
   EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatSayRequest)));
   EXPECT_FALSE(IsClientToServer(static_cast<uint16_t>(PacketId::ChatNotify)));
@@ -61,7 +65,8 @@ TEST(Packet, DirectionBandsClassifyChatIds) {
 
 // 로그인은 표준 방향대역(0x1xxx/0x2xxx), 게임 콘텐츠는 확장대역(0x8xxx C->S /
 // 0x9xxx S->C). 첫 게임패킷 전 확정한 하위관례의 회귀 가드.
-TEST(Packet, DirectionBandsClassifyLoginAndGameIds) {
+TEST(Packet, DirectionBandsClassifyLoginAndGameIds)
+{
   // 로그인(인프라 성격) — 표준 대역
   EXPECT_TRUE(IsClientToServer(static_cast<uint16_t>(PacketId::LoginRequest)));
   EXPECT_TRUE(IsServerToClient(static_cast<uint16_t>(PacketId::LoginResponse)));
@@ -75,7 +80,8 @@ TEST(Packet, DirectionBandsClassifyLoginAndGameIds) {
   EXPECT_FALSE(IsClientToServer(static_cast<uint16_t>(PacketId::MoveNotify)));
 }
 
-TEST(Packet, RejectsOversizePayload) {
+TEST(Packet, RejectsOversizePayload)
+{
   ChatSayRequest say;
   say.set_text(std::string(kMaxPacketSize + 100, 'x'));
   EXPECT_THROW(MakePacket(PacketId::ChatSayRequest, say), std::length_error);
