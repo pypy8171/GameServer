@@ -58,13 +58,16 @@ RUN useradd --system --create-home --shell /usr/sbin/nologin appuser
 USER appuser
 WORKDIR /home/appuser
 
-# 빌드 산출물 복사 (Ninja single-config → build/src/server/echo_server).
-COPY --from=build /src/build/src/server/echo_server /usr/local/bin/echo_server
+# 빌드 산출물 복사 (Ninja single-config → build/src/game_server/game_server).
+#   게임 수직 슬라이스 셸(로그인→월드입장→이동). 설정(game_server.cfg)이 없으면
+#   전부 기본값으로 뜨고 계정 0개 → 로그인은 거부되나 서버는 정상 리슨한다.
+#   데모 계정/보안정책은 런타임에 game_server.cfg 볼륨 마운트로 주입한다(비밀 미포함).
+COPY --from=build /src/build/src/game_server/game_server /usr/local/bin/game_server
 
-# 기본 포트 (main.cpp 기본값과 일치).
+# 기본 포트 (game_server/main.cpp 기본값과 일치).
 EXPOSE 7777
 
 # argv[1] 로 포트를 받으므로 CMD 로 오버라이드 가능:
 #   docker run ... game-server 9000
-ENTRYPOINT ["echo_server"]
+ENTRYPOINT ["game_server"]
 CMD ["7777"]
