@@ -63,8 +63,9 @@ class Reader : public std::enable_shared_from_this<Reader>
                        {
                          return;  // 연결 종료 → 읽기 루프 종료
                        }
-                       PacketHeader h;
-                       std::memcpy(&h, header_.data(), kHeaderSize);
+                       // 와이어=little-endian 고정. raw memcpy 는 호스트 바이트오더에
+                       //   의존 → 서버/디스패치와 동일하게 DecodeHeader 로 통일(D6/F4).
+                       const PacketHeader h = DecodeHeader(header_.data());
                        if (h.size < kHeaderSize || h.size > kMaxPacketSize)
                        {
                          return;
