@@ -18,9 +18,10 @@ void InMemoryAccountRepository::AddAccount(const std::string& account,
                                           const std::string& password,
                                           PlayerId player_id)
 {
-  // 데모 솔트 = 계정명(계정별로 다이제스트 분리). ⚠️ 실서비스는 계정별 랜덤 솔트를
-  //   별도 저장한다 — 계정명 파생 솔트는 예측 가능하므로 데모 한정.
-  const std::string salt = account;
+  // 계정별 랜덤 솔트를 생성해 레코드에 함께 저장한다(검증 시 rec.salt 로 재계산). [S-5]
+  //   예측 가능한 계정명 파생 솔트를 폐기 — 랜덤 솔트로 레인보우/솔트 재사용을 차단한다.
+  //   ⚠️ KDF 자체(FNV→argon2id/PBKDF2)는 전용 ADR/마일스톤에서 교체 예정(seam 유지).
+  const std::string salt = GenerateSalt();
   accounts_[account] = Record{salt, HashPassword(password, salt), player_id};
 }
 
