@@ -2,8 +2,10 @@
 
 #include <asio.hpp>
 #include <cstddef>
+#include <functional>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 #include "core/net/session.h"  // SessionId, SessionPtr
 #include "game.pb.h"
@@ -32,6 +34,9 @@ class World
   std::size_t Count() const;
   // 조회: 없으면 nullptr. 반환 포인터는 맵 변경 전까지만 유효(월드 strand 안).
   const PlayerEntity* Find(game::core::SessionId sid) const;
+  // 이동: 입장한 세션 엔티티의 위치를 갱신하고 갱신된 스냅샷을 돌려준다.
+  //   미입장(또는 이미 퇴장)한 sid 면 nullopt(유령 이동 가드 — 상태 변이 없음).
+  std::optional<PlayerEntity> Move(game::core::SessionId sid, float x, float y);
 
   // ---- strand 배선 (I/O glue) ----
   // 로그인 성공 콜백에서 호출. 월드 strand 로 진입해 입장시키고, 성공하면 해당
@@ -42,6 +47,16 @@ class World
   //   세션 객체가 이미 파괴됐을 수 있으므로 id 만 넘긴다).
   void PostLeave(game::core::SessionId sid);
 
+  // 프레임([헤더+페이로드])을 전원에 팬아웃하는 sink. World 가 SessionRegistry 를
+  //   직접 알지 않도록 끊는 seam(코어 net 의존 차단 — OnAuthenticated 와 동일 규율).
+  using BroadcastSink = std::function<void(const std::vector<uint8_t>&)>;
+  // 이동 요청 핸들러에서 호출. 월드 strand 로 진입해 위치를 변이하고, 성공하면
+  //   MoveNotify 를 broadcast 로 전원에 팬아웃한다. sid 는 세션 신원값(클라 주장
+  //   아님 — 스푸핑 차단). broadcast 는 async post 동안 살아야 하므로 값으로 받아
+  //   람다에 이동 캡처한다(호출측 임시 sink 댕글링 방지).
+  void PostMove(game::core::SessionId sid, float x, float y,
+                BroadcastSink broadcast);
+
  private:
   asio::strand<asio::any_io_executor> strand_;
   std::unordered_map<game::core::SessionId, PlayerEntity> players_;  // 월드 strand 전용
@@ -49,5 +64,9 @@ class World
 
 // 엔티티 스냅샷 → WorldEnteredNotify 매핑(순수, 테스트 대상).
 game::proto::WorldEnteredNotify MakeWorldEnteredNotify(const PlayerEntity& e);
+
+// 엔티티 스냅샷 → MoveNotify 매핑(순수, 테스트 대상). player_id 는 서버가 세션
+//   신원에서 채운 값 — 클라 주장 아님(스푸핑 차단).
+game::proto::MoveNotify MakeMoveNotify(const PlayerEntity& e);
 
 }  // namespace game::logic

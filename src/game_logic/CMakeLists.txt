@@ -6,6 +6,7 @@ add_library(game_logic STATIC
   account/in_memory_account_repository.cpp
   login/login_handlers.cpp
   world/world.cpp
+  game/game_handlers.cpp
 )
 
 # game_core 를 PUBLIC 링크하면 src/ include 루트(#include "game_logic/..."),

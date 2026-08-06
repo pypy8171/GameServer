@@ -94,6 +94,32 @@ TEST(RegisterLoginHandlers, ValidLoginAuthenticatesSessionThroughDispatcher)
   EXPECT_EQ(s->principal(), "alice");
 }
 
+// 이미 인증된 세션의 재로그인은 거부된다 — 유효 자격증명이어도 신원은 재설정되지 않고
+//   인증 훅도 다시 뜨지 않는다(신원 1회성). login_handlers.cpp 의 authenticated() 가드. [U-7]
+TEST(RegisterLoginHandlers, ReLoginOnAuthenticatedSessionIsRejected)
+{
+  asio::io_context io;
+  SessionRegistry reg;
+  Dispatcher d;
+  const auto repo = MakeRepo();
+
+  int calls = 0;
+  RegisterLoginHandlers(d, repo,
+                        [&](const SessionPtr&, PlayerId) { ++calls; });
+
+  auto s = MakeDummySession(io, d, reg);
+  s->Authenticate("alice");  // 이미 인증된 상태로 만든다(1차 로그인 성공 가정)
+  ASSERT_TRUE(s->authenticated());
+
+  // 유효 자격증명으로 재로그인 시도 → 거부(신원·훅 변화 없음).
+  const auto pkt = MakePacket(PacketId::LoginRequest, MakeReq("alice", "s3cret"));
+  d.Dispatch(s, pkt.data(), static_cast<uint16_t>(pkt.size()));
+
+  EXPECT_TRUE(s->authenticated());   // 여전히 인증(신원 유지)
+  EXPECT_EQ(s->principal(), "alice");
+  EXPECT_EQ(calls, 0);               // 재인증 훅은 다시 뜨지 않는다
+}
+
 // 틀린 자격증명은 세션을 인증하지 않는다(게이트는 통과하되 인증 실패).
 TEST(RegisterLoginHandlers, InvalidLoginLeavesSessionUnauthenticated)
 {
