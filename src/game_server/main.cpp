@@ -5,6 +5,7 @@
 //   — Dispatcher/SessionRegistry/Server 배선은 echo/chat 과 동일한 코어를 재사용한다.
 #include <algorithm>
 #include <asio.hpp>
+#include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <iostream>
@@ -21,9 +22,12 @@
 #include "core/config/server_config.h"
 #include "core/dispatch/dispatcher.h"
 #include "core/log/log.h"
+#include "core/net/send_budget.h"  // ClampSendQueueCap
 #include "core/net/server.h"
 #include "core/net/session_registry.h"
+#include "core/packet/packet.h"  // kMaxPacketSize
 #include "game_logic/account/in_memory_account_repository.h"
+#include "game_logic/game/game_handlers.h"
 #include "game_logic/login/login_handlers.h"
 #include "game_logic/world/world.h"
 
@@ -43,6 +47,8 @@ int main(int argc, char** argv)
   uint16_t port = 7777;              // 리슨 포트 기본값
   int entity_pool_count = 10000;     // 엔티티 풀 기본 용량
   int guild_pool_count = 1000;       // 길드 풀 기본 용량
+  int sendqueue_max_bytes =
+      static_cast<int>(kDefaultSendQueueCapBytes);  // send 큐 상한(백프레셔, ADR-E)
   bool cfg_ok = false;
   const ServerConfig cfg = ServerConfig::FromFile("game_server.cfg", &cfg_ok);
   if (cfg_ok)
@@ -50,6 +56,7 @@ int main(int argc, char** argv)
     port = cfg.GetUInt16("port", port);
     entity_pool_count = cfg.GetInt("entity_pool_count", entity_pool_count);
     guild_pool_count = cfg.GetInt("guild_pool_count", guild_pool_count);
+    sendqueue_max_bytes = cfg.GetInt("sendqueue_max_bytes", sendqueue_max_bytes);
   }
   if (argc > 1)
   {
@@ -64,6 +71,32 @@ int main(int argc, char** argv)
                 << "\n";
     }
   }
+  // send 큐 상한을 유효 바이트값으로 확정한다. 음수/0(설정 실수·미설정)은 기본값으로,
+  //   그다음 하한(단일 최대 프레임=kMaxPacketSize)으로 승격한다 — cap 이 한 프레임보다
+  //   작으면 정상 최대 패킷조차 백프레셔에 걸려 세션이 끊긴다(ClampSendQueueCap 주석).
+  const std::size_t send_cap = ClampSendQueueCap(
+      sendqueue_max_bytes > 0 ? static_cast<std::size_t>(sendqueue_max_bytes)
+                              : kDefaultSendQueueCapBytes,
+      kMaxPacketSize);
+
+  // 세션 보안 정책(S-1 타임아웃 / S-4 rate-limit)과 접속 상한(S-3)을 config 에서 주입.
+  //   전부 0 = 비활성(기본). 음수/미설정은 0(비활성)으로 폴백한다.
+  SessionPolicy policy;
+  policy.handshake_timeout = std::chrono::milliseconds(
+      std::max(0, cfg.GetInt("handshake_timeout_ms", 0)));
+  policy.idle_timeout =
+      std::chrono::milliseconds(std::max(0, cfg.GetInt("idle_timeout_ms", 0)));
+  policy.rate_burst = std::max(0, cfg.GetInt("rate_limit_burst", 0));
+  policy.rate_per_sec = std::max(0, cfg.GetInt("rate_limit_per_sec", 0));
+  const std::size_t max_sessions =
+      static_cast<std::size_t>(std::max(0, cfg.GetInt("max_sessions", 0)));
+  LOG_INFO(
+      "session policy: handshake_timeout_ms={} idle_timeout_ms={} "
+      "rate_limit_burst={} rate_limit_per_sec={} max_sessions={}",
+      static_cast<long long>(policy.handshake_timeout.count()),
+      static_cast<long long>(policy.idle_timeout.count()), policy.rate_burst,
+      policy.rate_per_sec, max_sessions);
+
   const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
 
   // 비동기 파일 로거 초기화(콘솔 미러링 on). 스레드 시작 전에 1회.
@@ -72,8 +105,9 @@ int main(int argc, char** argv)
   // 해석된 설정값 확인용 로그. cfg_ok=false 면 파일을 못 읽어 전부 기본값이다.
   LOG_INFO(
       "config loaded (cfg_ok={}): port={} entity_pool_count={} "
-      "guild_pool_count={}",
-      cfg_ok, port, entity_pool_count, guild_pool_count);
+      "guild_pool_count={} sendqueue_max_bytes={} (effective send_cap={})",
+      cfg_ok, port, entity_pool_count, guild_pool_count, sendqueue_max_bytes,
+      send_cap);
 
   // 계정 저장소(인메모리 스텁). dispatcher 보다 먼저 선언해 더 오래 살게 한다
   //   — 로그인 핸들러가 이 repo 를 참조 캡처하기 때문(수명 역전 시 UAF).
@@ -116,13 +150,17 @@ int main(int argc, char** argv)
       [&world](const SessionPtr& s, game::logic::PlayerId pid) {
         world.PostEnter(s, pid);
       });  // [ADR-P/J/N]
+  // 게임(인게임 액션) 핸들러 배선: 이동(MoveRequest→월드 strand 변이→MoveNotify
+  //   전원 브로드캐스트). registry 는 위에서 선언돼 dispatcher 보다 오래 산다.
+  game::logic::RegisterGameHandlers(dispatcher, world, registry);
   // 바인드/리슨 실패(포트 점유 등)는 Server 생성자에서 예외로 던진다. worker
   //   try/catch 진입 이전이라 감싸지 않으면 로그 없이 terminate → FATAL 로 원인을
   //   남기고 큐를 flush 한 뒤 정상 종료 코드로 나간다(chat_server 와 동일 규율).
   std::optional<Server> server;
   try
   {
-    server.emplace(io, port, dispatcher, registry);
+    server.emplace(io, port, dispatcher, registry, send_cap, policy,
+                   max_sessions);
     // 세션 종료 시 월드에서 퇴장(엔티티 제거). world strand 로 진입해 처리하며,
     //   세션 객체가 이미 파괴됐을 수 있으므로 SessionId 값만 넘긴다.
     server->set_on_disconnect(

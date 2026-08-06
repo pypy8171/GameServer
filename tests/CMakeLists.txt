@@ -2,6 +2,9 @@ find_package(GTest CONFIG REQUIRED)
 
 add_executable(core_tests
   server_config_test.cpp
+  send_budget_test.cpp
+  token_bucket_test.cpp
+  accept_policy_test.cpp
   packet_test.cpp
   serializer_test.cpp
   dispatcher_test.cpp
@@ -13,6 +16,8 @@ add_executable(core_tests
   login_handler_test.cpp
   world_test.cpp
   game_entry_test.cpp
+  session_backpressure_test.cpp
+  session_policy_test.cpp
 )
 target_link_libraries(core_tests PRIVATE
   game_core game_proto chat_logic game_logic
