@@ -21,6 +21,8 @@ const char* PacketIdName(uint16_t id)
     case PacketId::SystemNotify:       return "SystemNotify";
     case PacketId::LoginRequest:       return "LoginRequest";
     case PacketId::LoginResponse:      return "LoginResponse";
+    case PacketId::HeartbeatPong:      return "HeartbeatPong";
+    case PacketId::HeartbeatPing:      return "HeartbeatPing";
     case PacketId::MoveRequest:        return "MoveRequest";
     case PacketId::WorldEnteredNotify: return "WorldEnteredNotify";
     case PacketId::MoveNotify:         return "MoveNotify";
@@ -66,6 +68,14 @@ std::vector<uint8_t> MakePacket(PacketId id,
   EncodeHeader(buf.data(), PacketHeader{static_cast<uint16_t>(total),
                                         static_cast<uint16_t>(id)});
   body.SerializeToArray(buf.data() + kHeaderSize, static_cast<int>(body_size));
+  return buf;
+}
+
+std::vector<uint8_t> MakeControlPacket(PacketId id)
+{
+  std::vector<uint8_t> buf(kHeaderSize);
+  EncodeHeader(buf.data(), PacketHeader{static_cast<uint16_t>(kHeaderSize),
+                                        static_cast<uint16_t>(id)});
   return buf;
 }
 

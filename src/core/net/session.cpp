@@ -30,7 +30,11 @@ Session::Session(asio::ip::tcp::socket socket, const Dispatcher& dispatcher,
       timer_(strand_),  // strand 실행기 → async_wait 콜백이 strand 안에서 실행
       handshake_timeout_(policy.handshake_timeout),
       idle_timeout_(policy.idle_timeout),
-      rate_bucket_(policy.rate_burst, policy.rate_per_sec)
+      rate_bucket_(policy.rate_burst, policy.rate_per_sec),
+      heartbeat_timer_(strand_),
+      heartbeat_interval_(policy.heartbeat_interval),
+      // ms→초(double) 변환해 순수 Heartbeat 에 주입. 0 이면 Heartbeat 가 비활성.
+      heartbeat_(std::chrono::duration<double>(policy.heartbeat_timeout).count())
 {
   std::error_code ec;
   remote_ = socket_.remote_endpoint(ec);
@@ -105,7 +109,57 @@ bool Session::Authenticate(std::string principal)
   // 핸드셰이크 마감 → 유휴 마감으로 전환. expires_after 가 미인증 대기를 취소한다.
   //   (Authenticate 는 dispatch 경로에서 strand 안에서만 호출된다.)
   ArmIdleDeadline();
+  ArmHeartbeat();  // 인증 후에만 생존성 프로브 시작(미인증은 핸드셰이크 마감이 담당)
   return true;
+}
+
+void Session::ArmHeartbeat()
+{
+  if (heartbeat_interval_.count() <= 0 || !heartbeat_.enabled())
+  {
+    return;  // 비활성(주기 또는 timeout 미설정)
+  }
+  // 정상 운영 전제: interval < timeout. 역이면 첫 Ping 을 쏘기도 전에 timeout 초과로
+  //   전 세션이 조용히 끊긴다(Classify 는 발신 전에 판정, any-recv 기준). 오설정을
+  //   무음 실패시키지 않고 경고만 남긴다(계약 위반 조기 발견 — 동작은 정책값 존중).
+  const double interval_sec =
+      std::chrono::duration<double>(heartbeat_interval_).count();
+  if (interval_sec >= heartbeat_.timeout_sec())
+  {
+    LOG_WARN(
+        "[session] heartbeat 오설정: interval({}ms) >= timeout({}ms) — 프로브 전 "
+        "종료 위험 (id={})",
+        heartbeat_interval_.count(),
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::duration<double>(heartbeat_.timeout_sec()))
+            .count(),
+        id_);
+  }
+  heartbeat_.OnActivity(SteadyNowSeconds());  // 인증 시점을 활동 기준으로
+  ScheduleHeartbeat();
+}
+
+void Session::ScheduleHeartbeat()
+{
+  auto self = shared_from_this();
+  heartbeat_timer_.expires_after(heartbeat_interval_);
+  heartbeat_timer_.async_wait(
+      asio::bind_executor(strand_, [this, self](std::error_code ec) {
+        if (ec || closed_)
+        {
+          return;  // 취소(종료) — 무시
+        }
+        // 마지막 수신 이후 경과가 timeout 을 넘었으면 죽은 세션 → 강제 종료.
+        if (heartbeat_.Classify(SteadyNowSeconds()) == HeartbeatAction::Close)
+        {
+          LOG_WARN("[session] heartbeat 무응답 (id={}) — 강제 종료", id_);
+          Close();
+          return;
+        }
+        // 살아있음 → 능동 Ping(유휴 클라 프로브 + NAT keepalive) 후 재무장.
+        Send(MakeControlPacket(PacketId::HeartbeatPing));
+        ScheduleHeartbeat();
+      }));
 }
 
 void Session::ReadHeader()
@@ -157,6 +211,16 @@ void Session::ReadBody(uint16_t body_size)
         if (authenticated_)
         {
           ArmIdleDeadline();
+          heartbeat_.OnActivity(SteadyNowSeconds());  // any-recv 가 생존 데드라인 리셋
+        }
+        // heartbeat Pong 은 코어 제어 프레임 — read 경로에서 가로채 디스패처를 거치지
+        //   않는다(위 OnActivity 로 생존 신호는 이미 반영). 디스패처에 넘기면 미등록
+        //   핸들러로 unknown-drop 경고만 남으므로 여기서 소비하고 다음 패킷으로.
+        const uint16_t pid = DecodeHeader(recv_buf_.data()).id;
+        if (pid == static_cast<uint16_t>(PacketId::HeartbeatPong))
+        {
+          ReadHeader();
+          return;
         }
         dispatcher_.Dispatch(self, recv_buf_.data(),
                              static_cast<uint16_t>(recv_buf_.size()));
@@ -239,7 +303,8 @@ void Session::Close()
   }
 
   std::error_code ec;
-  timer_.cancel(ec);  // 미결 타임아웃 대기 취소 → self 캡처 해제(세션 조기 회수)
+  timer_.cancel(ec);           // 미결 타임아웃 대기 취소 → self 캡처 해제(세션 조기 회수)
+  heartbeat_timer_.cancel(ec);  // 생존성 대기도 취소 — 안 하면 다음 틱까지 self 잔류
   socket_.close(ec);
 }
 

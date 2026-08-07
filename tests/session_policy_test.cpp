@@ -204,3 +204,105 @@ TEST(SessionPolicy, RateLimitForceClosesFloodingSession)
   server_io.stop();
   server_thread.join();
 }
+
+// ADR-V(무응답 종료): 인증 후 heartbeat ping 에 계속 무응답(any-recv 없음)이면
+//   마지막 활동 이후 timeout 초과로 강제 종료된다(half-open/좀비 능동 탐지).
+//   클라는 로그인만 하고 이후 완전히 침묵한다 → 서버 ping 은 가지만 pong 이 없다.
+TEST(SessionPolicy, HeartbeatForceClosesUnresponsiveSession)
+{
+  using namespace game::logic;
+  constexpr uint16_t kPort = 39234;
+  asio::io_context server_io;
+  SessionRegistry registry;
+  InMemoryAccountRepository accounts;
+  accounts.AddAccount("hero", "pw", /*player_id=*/7);
+  World world(server_io);
+  Dispatcher dispatcher;
+  RegisterLoginHandlers(
+      dispatcher, accounts,
+      [&world](const SessionPtr& s, PlayerId pid) { world.PostEnter(s, pid); });
+
+  SessionPolicy policy;  // idle 는 비활성(0) — heartbeat 경로만 격리해 검증
+  policy.heartbeat_interval = std::chrono::milliseconds(80);  // ping 주기
+  policy.heartbeat_timeout = std::chrono::milliseconds(120);  // 무응답 사망 임계
+  Server server(server_io, kPort, dispatcher, registry,
+                kDefaultSendQueueCapBytes, policy);
+  server.set_on_disconnect(
+      [&world](const SessionPtr& s) { world.PostLeave(s->id()); });
+  server.Start();
+  std::thread server_thread([&server_io] { server_io.run(); });
+
+  asio::io_context cio;
+  tcp::socket sock = Connect(cio, kPort);
+  LoginRequest req;
+  req.set_account("hero");
+  req.set_password("pw");
+  asio::write(sock, asio::buffer(MakePacket(PacketId::LoginRequest, req)));
+  ASSERT_TRUE(WaitUntil([&] { return registry.Count() == 1; }));
+
+  // 로그인 후 완전 침묵 → 서버 ping 은 오지만 pong(any-recv) 이 없어 timeout 초과 → Close.
+  EXPECT_TRUE(WaitUntil([&] { return registry.Count() == 0; }))
+      << "heartbeat 무응답 세션은 강제 종료돼야 한다";
+
+  sock.close();
+  server_io.stop();
+  server_thread.join();
+}
+
+// ADR-V(생존): 인증 후 timeout 보다 짧은 간격으로 pong(any-recv)을 계속 보내면
+//   데드라인이 매번 리셋돼 timeout 의 여러 배 시간을 넘겨도 세션이 유지된다
+//   (heartbeat 가 정상 연결을 죽이지 않음). 이후 침묵하면 같은 배선으로 종료 수렴.
+TEST(SessionPolicy, HeartbeatKeepsResponsiveSessionAlive)
+{
+  using namespace game::logic;
+  constexpr uint16_t kPort = 39235;
+  asio::io_context server_io;
+  SessionRegistry registry;
+  InMemoryAccountRepository accounts;
+  accounts.AddAccount("hero", "pw", /*player_id=*/7);
+  World world(server_io);
+  Dispatcher dispatcher;
+  RegisterLoginHandlers(
+      dispatcher, accounts,
+      [&world](const SessionPtr& s, PlayerId pid) { world.PostEnter(s, pid); });
+
+  SessionPolicy policy;
+  policy.heartbeat_interval = std::chrono::milliseconds(80);
+  policy.heartbeat_timeout = std::chrono::milliseconds(120);
+  Server server(server_io, kPort, dispatcher, registry,
+                kDefaultSendQueueCapBytes, policy);
+  server.set_on_disconnect(
+      [&world](const SessionPtr& s) { world.PostLeave(s->id()); });
+  server.Start();
+  std::thread server_thread([&server_io] { server_io.run(); });
+
+  asio::io_context cio;
+  tcp::socket sock = Connect(cio, kPort);
+  LoginRequest req;
+  req.set_account("hero");
+  req.set_password("pw");
+  asio::write(sock, asio::buffer(MakePacket(PacketId::LoginRequest, req)));
+  ASSERT_TRUE(WaitUntil([&] { return registry.Count() == 1; }));
+
+  // timeout(120ms)보다 짧은 40ms 간격으로 pong 을 계속 보낸다 → any-recv 로 리셋.
+  //   timeout 의 여러 배(~500ms) 동안 세션이 유지되는지 확인한다.
+  const std::vector<uint8_t> pong = MakeControlPacket(PacketId::HeartbeatPong);
+  const auto until =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+  std::error_code wec;
+  while (std::chrono::steady_clock::now() < until && !wec)
+  {
+    asio::write(sock, asio::buffer(pong), wec);
+    std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  }
+  EXPECT_FALSE(wec) << "pong 을 보내는 동안 세션이 끊기면 안 된다";
+  EXPECT_EQ(registry.Count(), 1u) << "응답하는 세션은 유지돼야 한다";
+
+  // 이제 침묵 → timeout 초과 → 강제 종료로 수렴(동일 배선의 종료 경로 확인).
+  EXPECT_TRUE(WaitUntil([&] { return registry.Count() == 0; }))
+      << "응답이 끊기면 heartbeat timeout 으로 종료돼야 한다";
+
+  sock.close();
+  server_io.stop();
+  server_thread.join();
+}

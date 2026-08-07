@@ -55,6 +55,12 @@ enum class PacketId : uint16_t
   LoginRequest = 0x1010,   // C->S : 계정/비번 제출
   LoginResponse = 0x2010,  // S->C : 인증 결과(+player_id)
 
+  // --- Heartbeat : 세션 생존성(ADR-V, 인프라 제어 프레임 — 페이로드 없음) ---
+  //   서버가 능동 발신(Ping), 클라가 응답(Pong). 코어가 read 경로에서 Pong 을
+  //   가로채 처리(디스패처 미경유). 본문 없는 헤더-only 프레임(MakeControlPacket).
+  HeartbeatPong = 0x1020,  // C->S : 클라 생존 응답
+  HeartbeatPing = 0x2020,  // S->C : 서버 능동 프로브
+
   // --- Game : 게임 콘텐츠 (0x8000+ 확장 대역) ---
   //   방향 하위관례: C->S [0x8000,0x9000), S->C [0x9000,0xA000).
   MoveRequest = 0x8001,         // C->S : 이동 요청
@@ -96,5 +102,9 @@ const char* PacketIdName(uint16_t id);
 // protobuf 메시지를 [헤더+페이로드] 프레임으로 직렬화한다.
 std::vector<uint8_t> MakePacket(PacketId id,
                                 const google::protobuf::MessageLite& body);
+
+// 페이로드 없는 제어 프레임(헤더만, size=kHeaderSize)을 만든다. heartbeat ping/pong
+//   처럼 라우팅 id 만으로 의미가 완결되는 순수 제어 패킷용(proto 의존 없음).
+std::vector<uint8_t> MakeControlPacket(PacketId id);
 
 }  // namespace game::core

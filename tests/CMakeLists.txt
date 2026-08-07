@@ -4,6 +4,7 @@ add_executable(core_tests
   server_config_test.cpp
   send_budget_test.cpp
   token_bucket_test.cpp
+  heartbeat_test.cpp
   accept_policy_test.cpp
   packet_test.cpp
   serializer_test.cpp

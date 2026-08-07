@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "core/net/heartbeat.h"
 #include "core/net/send_budget.h"
 #include "core/net/token_bucket.h"
 
@@ -43,6 +44,10 @@ struct SessionPolicy
   //   burst<=0 이면 비활성. 초과 시 세션 강제 종료(플러딩 방어).
   double rate_burst{0.0};
   double rate_per_sec{0.0};
+  // 세션 생존성 heartbeat(ADR-V): 인증 후 interval 마다 Ping 발신, 마지막 수신 이후
+  //   timeout 초과면 강제 종료. any-recv 가 데드라인 리셋. 둘 중 하나라도 0 이면 비활성.
+  std::chrono::milliseconds heartbeat_interval{0};  // Ping 주기(타이머 period)
+  std::chrono::milliseconds heartbeat_timeout{0};   // 무응답 사망 임계
 };
 
 // 하나의 TCP 연결. 헤더->바디 2단계 비동기 읽기로 패킷 경계를 복원하고,
@@ -108,6 +113,12 @@ class Session : public std::enable_shared_from_this<Session>
   // 유휴 마감을 (재)무장한다(인증 성공 시 최초, 이후 수신 활동마다 리셋).
   void ArmIdleDeadline();
 
+  // --- 생존성 heartbeat(ADR-V) — 전부 strand 안에서만 호출 ---
+  // 인증 성공 시 최초 무장(활동 기준 시각을 지금으로 잡고 첫 Ping 예약).
+  void ArmHeartbeat();
+  // 다음 heartbeat 틱을 예약한다. 틱에서 Classify → Close 또는 Ping 후 재예약.
+  void ScheduleHeartbeat();
+
   asio::ip::tcp::socket socket_;
   asio::strand<asio::any_io_executor> strand_;
   const Dispatcher& dispatcher_;
@@ -127,6 +138,12 @@ class Session : public std::enable_shared_from_this<Session>
   const std::chrono::milliseconds handshake_timeout_;  // 0 = 비활성
   const std::chrono::milliseconds idle_timeout_;       // 0 = 비활성
   TokenBucket rate_bucket_;  // 인바운드 rate-limit (strand 안, S-4). 비활성 가능
+
+  // 생존성 heartbeat(ADR-V). 유휴 timer_ 와 '동시 진행'해야 하므로 별도 타이머다
+  //   (단일 timer_ 로는 순차 재사용만 가능). 무장/취소 전부 strand 안.
+  asio::steady_timer heartbeat_timer_;
+  const std::chrono::milliseconds heartbeat_interval_;  // 0 = 비활성(Ping 주기)
+  Heartbeat heartbeat_;  // 순수 생존 판정 (strand 안). timeout<=0 이면 비활성
 
   std::string principal_;      // 불투명 신원 (strand 안): chat=닉네임, game=계정id
   bool authenticated_ = false;
