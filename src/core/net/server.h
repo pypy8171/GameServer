@@ -14,6 +14,7 @@ namespace game::core
 class Dispatcher;
 class Session;
 class SessionRegistry;
+class SessionPool;
 using SessionPtr = std::shared_ptr<Session>;
 
 // TCP Acceptor. 연결을 받을 때마다 Session 을 만들어 레지스트리에 등록하고
@@ -50,6 +51,10 @@ class Server
   const std::size_t send_queue_cap_bytes_;
   const SessionPolicy policy_;       // 새 세션에 주입할 보안 정책(S-1/S-4)
   const std::size_t max_sessions_;   // 동접 상한(S-3). 0 = 무제한
+  // 세션 풀(ADR-B/W). max_sessions>0 일 때만 존재(무제한 모드는 힙 make_shared 유지 —
+  //   상한 없이는 저장소 크기를 못 정한다). shared_ptr 인 이유는 세션 deleter 가 풀
+  //   강참조를 쥐어 풀 수명을 봉인하기 때문(SessionPool 주석 (3)).
+  std::shared_ptr<SessionPool> pool_;
   std::function<void(const SessionPtr&)> on_disconnect_;
 };
 

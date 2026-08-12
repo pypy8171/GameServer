@@ -1,5 +1,6 @@
 #include "core/net/server.h"
 
+#include <algorithm>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -8,6 +9,7 @@
 #include "core/log/log.h"
 #include "core/net/accept_policy.h"
 #include "core/net/session.h"
+#include "core/net/session_pool.h"
 #include "core/net/session_registry.h"
 
 namespace game::core
@@ -25,6 +27,16 @@ std::string EndpointStr(const asio::ip::tcp::endpoint& ep)
 // accept 에러 후 재무장까지의 백오프. busy-spin(CPU 100%)만 막으면 되므로 짧게.
 //   자원 고갈(EMFILE 등)이 잠깐 풀릴 시간을 주되 수용 지연은 최소화한다.
 constexpr auto kAcceptBackoff = std::chrono::milliseconds(200);
+
+// 세션 풀 여유분(draining reserve, ADR-W). 풀 용량 = max_sessions + 이 여유분.
+//   라이브 게이트(registry.Count()<max_sessions)로 신규 수용을 막아도, Close 후 아직
+//   shared_ptr 참조가 남아 소멸 못한 '꼬리(draining tail)' 세션이 슬롯을 붙들 수 있다.
+//   그 지연분을 여유분이 흡수해 풀 고갈(TryAcquire 실패)을 사실상 안 나게 한다.
+//   기본 = max(256, 5%). config 주입은 후속(⑤ 카운터 이관 웨이브).
+std::size_t DrainingReserve(std::size_t max_sessions)
+{
+  return std::max<std::size_t>(256, max_sessions / 20);
+}
 }  // namespace
 
 Server::Server(asio::io_context& io, uint16_t port, const Dispatcher& dispatcher,
@@ -39,6 +51,12 @@ Server::Server(asio::io_context& io, uint16_t port, const Dispatcher& dispatcher
       policy_(policy),
       max_sessions_(max_sessions)
 {
+  // 상한이 있을 때만 풀을 만든다. 무제한(0) 모드는 저장소 크기를 못 정하므로 기존
+  //   힙 make_shared 경로를 유지한다(echo/chat 등 상한 미지정 배선 무변화).
+  if (max_sessions_ > 0)
+  {
+    pool_ = SessionPool::Create(max_sessions_ + DrainingReserve(max_sessions_));
+  }
 }
 
 void Server::Start()
@@ -81,9 +99,31 @@ void Server::DoAccept()
           return;
         }
 
-        auto session = std::make_shared<Session>(std::move(socket), dispatcher_,
-                                                 registry_, send_queue_cap_bytes_,
-                                                 policy_);
+        // 세션 생성: 풀이 있으면(상한 모드) 풀에서, 없으면(무제한) 힙에서.
+        SessionPtr session;
+        if (pool_)
+        {
+          // 인자는 지연 forward — TryAcquire 가 먼저 실패하면 socket 은 이동되지 않아
+          //   아래 백스톱에서 그대로 닫을 수 있다(Session 생성자에 도달해야 이동 발생).
+          session = pool_->Acquire(std::move(socket), dispatcher_, registry_,
+                                   send_queue_cap_bytes_, policy_);
+          if (!session)
+          {
+            // 방어 백스톱(ADR-W): 라이브 게이트를 통과했는데도 풀에 자유 슬롯이 없다
+            //   (draining 꼬리가 여유분을 다 삼킨 극단). 이 연결만 닫고 계속 accept.
+            std::error_code ignore;
+            socket.close(ignore);
+            LOG_WARN("세션 풀 고갈(cap={}) — 연결 거부(백스톱)", pool_->capacity());
+            DoAccept();
+            return;
+          }
+        }
+        else
+        {
+          session = std::make_shared<Session>(std::move(socket), dispatcher_,
+                                              registry_, send_queue_cap_bytes_,
+                                              policy_);
+        }
         LOG_INFO("accepted {} (id={})", EndpointStr(session->remote()),
                  session->id());
         if (on_disconnect_)
