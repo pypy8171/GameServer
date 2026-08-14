@@ -40,6 +40,15 @@ class Server
 
   void Start();
 
+  // 세션 풀 draining tail 게이지(ADR-W §9-3) — 강제 close 됐으나 in-flight async op 이
+  //   슬롯을 아직 붙들고 있는 '반납 대기 꼬리' 세션 수. 반납 지연·수명 누수의 조기 관측
+  //   신호다(값이 draining_reserve 에 근접하면 백스톱 트립 임박). 풀 비활성(무제한 모드
+  //   = pool_ 없음)이면 0. 스냅샷 관측용(풀·registry 락을 서로 다른 순간에 읽음).
+  //   주의: Acquire(occupied++) 와 Start→registry.Add(live++) 사이의 '시작 중' 세션도
+  //   이 차(occupied-live)에 순간 섞인다 → 실제 draining 보다 최대 '동시 accept 수'(현
+  //   구조상 ≤1)만큼 낙관적으로 튈 수 있다. 순간적·무해하나 정밀 임계 판정 시 감안.
+  std::size_t draining_tail() const;
+
  private:
   void DoAccept();
 

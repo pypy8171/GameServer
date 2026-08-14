@@ -65,6 +65,13 @@ void Server::Start()
   DoAccept();
 }
 
+std::size_t Server::draining_tail() const
+{
+  // 순수 정산(DrainingTail)에 두 관측값을 넘긴다: 풀 점유(occupied) - 라이브(registry).
+  //   무제한 모드(pool_ 없음)는 풀 자체가 없어 draining 개념이 성립 안 함 → 0.
+  return pool_ ? DrainingTail(pool_->occupied(), registry_.Count()) : 0;
+}
+
 void Server::DoAccept()
 {
   acceptor_.async_accept(

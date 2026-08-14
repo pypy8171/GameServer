@@ -40,4 +40,18 @@ inline bool AcceptWithinCap(std::size_t current, std::size_t cap)
   return cap == 0 || current < cap;
 }
 
+// 세션 풀 draining tail 게이지(ADR-W §9-3). 풀 용량 = max_sessions + draining_reserve
+//   정산의 관측 짝이다(AcceptWithinCap = 라이브 게이트). Close 는 registry 에서 세션을
+//   즉시 빼지만(라이브 하락) in-flight async op(async_write·타이머)이 refcount>0 로
+//   슬롯을 계속 붙들 수 있어, 풀 점유(occupied)가 라이브(live)를 웃돈다. 그 차이가
+//   '반납 대기 꼬리(draining tail)' = 반납 지연·수명 누수의 조기 관측 신호다.
+//
+//   occupied 와 live 는 서로 다른 락(풀 mutex / registry mutex)을 다른 순간에 읽은
+//   스냅샷이라, 그 사이 새 세션이 Start→등록되면 순간적으로 live>occupied 가 될 수
+//   있다. 그때 size_t 뺄셈이 언더플로해 게이지가 거대값으로 튀지 않도록 0 으로 클램프.
+inline std::size_t DrainingTail(std::size_t occupied, std::size_t live)
+{
+  return occupied > live ? occupied - live : 0;
+}
+
 }  // namespace game::core
