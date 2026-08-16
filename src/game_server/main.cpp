@@ -90,12 +90,17 @@ int main(int argc, char** argv)
   policy.rate_per_sec = std::max(0, cfg.GetInt("rate_limit_per_sec", 0));
   const std::size_t max_sessions =
       static_cast<std::size_t>(std::max(0, cfg.GetInt("max_sessions", 0)));
+  // 세션 풀 여유분(ADR-W). 0(기본) 이면 Server 가 max(256, max_sessions/20)=5% 로 자동.
+  //   운영자가 명시하면 그 값을 존중한다(ResolveDrainingReserve). max_sessions==0 이면 무의미.
+  const std::size_t draining_reserve =
+      static_cast<std::size_t>(std::max(0, cfg.GetInt("draining_reserve", 0)));
   LOG_INFO(
       "session policy: handshake_timeout_ms={} idle_timeout_ms={} "
-      "rate_limit_burst={} rate_limit_per_sec={} max_sessions={}",
+      "rate_limit_burst={} rate_limit_per_sec={} max_sessions={} "
+      "draining_reserve={}",
       static_cast<long long>(policy.handshake_timeout.count()),
       static_cast<long long>(policy.idle_timeout.count()), policy.rate_burst,
-      policy.rate_per_sec, max_sessions);
+      policy.rate_per_sec, max_sessions, draining_reserve);
 
   const unsigned threads = std::max(1u, std::thread::hardware_concurrency());
 
@@ -160,7 +165,7 @@ int main(int argc, char** argv)
   try
   {
     server.emplace(io, port, dispatcher, registry, send_cap, policy,
-                   max_sessions);
+                   max_sessions, draining_reserve);
     // 세션 종료 시 월드에서 퇴장(엔티티 제거). world strand 로 진입해 처리하며,
     //   세션 객체가 이미 파괴됐을 수 있으므로 SessionId 값만 넘긴다.
     server->set_on_disconnect(

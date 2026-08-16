@@ -27,10 +27,14 @@ class Server
   // policy: 세션 보안 정책(타임아웃 S-1 / rate-limit S-4). 기본 전부 비활성.
   // max_sessions: 동시 접속 상한(S-3/ADR-T). 0 = 무제한(기본). 도달 시 새 연결은
   //   조용히 닫고 accept 는 계속 돈다. 현재 동접은 registry.Count() 로 관측한다.
+  // draining_reserve: 세션 풀 여유분(ADR-W). 풀 용량 = max_sessions + 이 값. 0(기본)
+  //   이면 max(256, max_sessions/20)=5% 로 자동. config(draining_reserve) 주입 지점.
+  //   max_sessions==0(무제한, 풀 없음) 이면 무의미(무시). 자세히는 ResolveDrainingReserve.
   Server(asio::io_context& io, uint16_t port, const Dispatcher& dispatcher,
          SessionRegistry& registry,
          std::size_t send_queue_cap_bytes = kDefaultSendQueueCapBytes,
-         const SessionPolicy& policy = {}, std::size_t max_sessions = 0);
+         const SessionPolicy& policy = {}, std::size_t max_sessions = 0,
+         std::size_t draining_reserve = 0);
 
   // 각 세션 종료 시 실행할 앱 훅(예: "X 퇴장" 브로드캐스트). 선택.
   void set_on_disconnect(std::function<void(const SessionPtr&)> hook)

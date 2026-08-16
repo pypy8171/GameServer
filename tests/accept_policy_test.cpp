@@ -11,6 +11,7 @@ using game::core::AcceptAction;
 using game::core::AcceptWithinCap;
 using game::core::ClassifyAcceptResult;
 using game::core::DrainingTail;
+using game::core::ResolveDrainingReserve;
 
 // 성공(ec 없음) → 곧바로 다음 연결 수락.
 TEST(AcceptPolicy, SuccessAcceptsNext)
@@ -68,4 +69,23 @@ TEST(AcceptPolicy, DrainingTailClampsToZeroWhenLiveExceedsOccupied)
 {
   EXPECT_EQ(DrainingTail(3, 5), 0u);
   EXPECT_EQ(DrainingTail(0, 1), 0u);
+}
+
+// draining_reserve 결정(ADR-W, M3⑤ config 주입): 미설정(configured==0)이면 기본 =
+//   max(256, max_sessions/20)=5%. 소규모는 바닥값 256 로 고정, 대규모는 5% 비례 확장.
+TEST(AcceptPolicy, ResolveDrainingReserveDefaultsToFivePercentFloor256)
+{
+  EXPECT_EQ(ResolveDrainingReserve(/*configured=*/0, /*max_sessions=*/1000), 256u);
+  EXPECT_EQ(ResolveDrainingReserve(0, 0), 256u);        // 극소 — 바닥값
+  EXPECT_EQ(ResolveDrainingReserve(0, 5120), 256u);     // 5%=256 경계
+  EXPECT_EQ(ResolveDrainingReserve(0, 100000), 5000u);  // 5% 비례
+}
+
+// 운영자가 명시(configured>0)하면 기본식을 무시하고 그 값을 그대로 존중한다 —
+//   기본보다 작아도(다른 config knob 과 동일 규율, 운영자 책임).
+TEST(AcceptPolicy, ResolveDrainingReserveHonorsConfiguredValue)
+{
+  EXPECT_EQ(ResolveDrainingReserve(/*configured=*/777, /*max_sessions=*/100000), 777u);
+  EXPECT_EQ(ResolveDrainingReserve(1, 100000), 1u);  // 기본(5000)보다 작아도 존중
+  EXPECT_EQ(ResolveDrainingReserve(4096, 0), 4096u);
 }

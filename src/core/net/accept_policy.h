@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <system_error>
 
@@ -52,6 +53,23 @@ inline bool AcceptWithinCap(std::size_t current, std::size_t cap)
 inline std::size_t DrainingTail(std::size_t occupied, std::size_t live)
 {
   return occupied > live ? occupied - live : 0;
+}
+
+// 세션 풀 draining_reserve(여유분) 결정(ADR-W, M3⑤ config 주입). 풀 용량 =
+//   max_sessions + 이 여유분. 여유분은 draining tail(반납 대기 꼬리)을 흡수해 라이브
+//   게이트 통과 후의 풀 고갈(TryAcquire 실패=백스톱 트립)을 사실상 없앤다.
+//   - configured>0 : 운영자 명시값을 그대로 존중한다(기본보다 작아도 — 다른 config
+//     knob 과 동일 규율, 운영자 책임). config 로 여유분을 직접 튜닝하는 지점.
+//   - configured==0(미설정/음수→0 폴백) : 기본 = max(256, max_sessions/20) = 5%.
+//     소규모에서도 최소 256 슬롯은 확보(바닥값), 대규모에선 5% 로 비례 확장.
+inline std::size_t ResolveDrainingReserve(std::size_t configured,
+                                          std::size_t max_sessions)
+{
+  if (configured > 0)
+  {
+    return configured;  // 운영자 명시값 존중(작아도 — 운영자 책임)
+  }
+  return std::max<std::size_t>(256, max_sessions / 20);  // 기본 max(256, 5%)
 }
 
 }  // namespace game::core
