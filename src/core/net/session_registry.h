@@ -2,27 +2,20 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
-#include <mutex>
-#include <unordered_map>
 #include <vector>
 
+#include "core/net/group.h"    // Group (전역 팬아웃 위임)
 #include "core/net/session.h"  // SessionId, SessionPtr
 
 namespace game::core
 {
 
-// 살아있는 세션 집합. 게임 무관 코어 프리미티브.
+// 살아있는 세션 집합 + 전역 팬아웃. 게임 무관 코어 프리미티브.
 //
-// 동시성 계약(ADR-A):
-//   - 컨테이너는 mutex 로 보호.
-//   - Broadcast 는 락 안에서 shared_ptr '스냅샷'만 뜨고 락을 푼 뒤 순회한다.
-//     (순회 중 Session::Send 가 대상 strand 로 post 하므로, 락을 잡은 채
-//      네트워크 경로로 들어가지 않는다 = 락 범위 최소화 + 데드락 회피.)
-//   - 스냅샷이 shared_ptr 이므로 순회 중 대상이 종료돼도 객체는 살아있다(UAF 방지).
-//
-// 팬아웃(ADR-G): Broadcast 는 프레임을 수신자마다 복사(copy-per-recipient)한다.
-//   Session::Send 가 값으로 받으므로 각 호출이 세션별 단일소유 버퍼로 복사된다.
+// ADR-X 결정 A: **전역 Broadcast 는 "전원이 멤버인 Group" 특수case 다.** 멤버십·팬아웃·
+//   동시성 계약(ADR-A: 락 안 shared_ptr 스냅샷 → 락 밖 순회 Send / ADR-G: copy-per-
+//   recipient)은 전부 내부 all-members `Group` 에 위임한다. SessionRegistry 는 그 Group 을
+//   전역 스코프로 감싸는 얇은 어댑터로 남는다(Count = 라이브 게이트 겸 관측 메트릭, ADR-W/T).
 class SessionRegistry
 {
  public:
@@ -36,8 +29,7 @@ class SessionRegistry
   std::size_t Count() const;
 
  private:
-  mutable std::mutex mu_;
-  std::unordered_map<SessionId, SessionPtr> sessions_;
+  Group all_;  // 전원 멤버 그룹 = 전역 브로드캐스트 스코프
 };
 
 }  // namespace game::core

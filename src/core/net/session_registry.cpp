@@ -1,49 +1,29 @@
 #include "core/net/session_registry.h"
 
-#include <utility>
-
 namespace game::core
 {
 
+// 전 메서드를 내부 all-members Group 에 위임한다(ADR-X 결정 A). 멤버십·스냅샷·락 규율은
+//   Group 이 소유하므로 여기엔 추가 상태/락이 없다(이중 락·이중 진실원 회피).
+
 void SessionRegistry::Add(const SessionPtr& s)
 {
-  std::lock_guard<std::mutex> lock(mu_);
-  sessions_[s->id()] = s;
+  all_.Join(s);
 }
 
 void SessionRegistry::Remove(SessionId id)
 {
-  std::lock_guard<std::mutex> lock(mu_);
-  sessions_.erase(id);  // 없으면 no-op = 멱등
+  all_.Leave(id);
 }
 
-void SessionRegistry::Broadcast(const std::vector<uint8_t>& frame,
-                                SessionId except)
+void SessionRegistry::Broadcast(const std::vector<uint8_t>& frame, SessionId except)
 {
-  // 1) 락 안에서 스냅샷만 뜬다(shared_ptr copy = 수명 확보).
-  std::vector<SessionPtr> snapshot;
-  {
-    std::lock_guard<std::mutex> lock(mu_);
-    snapshot.reserve(sessions_.size());
-    for (const auto& [id, s] : sessions_)
-    {
-      if (id != except)
-      {
-        snapshot.push_back(s);
-      }
-    }
-  }
-  // 2) 락을 푼 뒤 순회. Send 는 대상 strand 로 post + 프레임을 세션별로 복사한다.
-  for (const auto& s : snapshot)
-  {
-    s->Send(frame);  // copy-per-recipient (ADR-G)
-  }
+  all_.Broadcast(frame, except);
 }
 
 std::size_t SessionRegistry::Count() const
 {
-  std::lock_guard<std::mutex> lock(mu_);
-  return sessions_.size();
+  return all_.Count();
 }
 
 }  // namespace game::core

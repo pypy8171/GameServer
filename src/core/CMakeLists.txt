@@ -6,6 +6,7 @@ add_library(game_core STATIC
   dispatch/dispatcher.cpp
   net/session.cpp
   net/session_registry.cpp
+  net/group.cpp
   net/server.cpp
   log/log.cpp
 )
