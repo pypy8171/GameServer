@@ -54,10 +54,30 @@ double SteadyNowSeconds()
 
 void Session::Start()
 {
+  // 레지스트리는 스레드 안전(자체 락) → off-strand 등록 OK. 여기서 동기로 공개해야
+  //   accept 상한/풀 회계(registry_.Count() 기반)가 즉시 반영된다.
   registry_.Add(shared_from_this());
-  // 미인증 상태의 절대 마감을 건다(설정 시). 인증 성공 시 유휴 마감으로 전환된다.
-  ArmHandshakeDeadline();
-  ReadHeader();
+
+  // socket_/timer_ 조작은 반드시 세션 strand 위에서(계약: session.h — Close/Arm/Read
+  //   전부 strand 국한). Start 는 accept 완료 핸들러가 '임의 io 스레드'에서 부르므로
+  //   (server.cpp: accept 람다는 어떤 strand 에도 bind 되지 않음), 여기서 arm/read 를
+  //   직접 하면 위 registry_.Add 로 이미 공개된 세션에 다른 스레드의 Broadcast→Send→
+  //   Close(socket_.close()/timer_.cancel())가 겹쳐 asio 객체 동시 멤버호출(UB)이 된다.
+  //   strand 로 넘겨 다른 strand 핸들러와 직렬화한다(유일하게 off-strand 였던 비대칭 제거).
+  auto self = shared_from_this();
+  asio::post(strand_, [this, self]() {
+    // post 가 큐잉된 사이 다른 strand 핸들러(Broadcast→Send→예산초과 Close 등)가
+    //   세션을 먼저 닫았을 수 있다. 그 경우 arm/read 를 걸면 닫힌 소켓 read 는 곧
+    //   에러로 수렴하나, 핸드셰이크 타이머는 새로 무장돼 self 가 timeout(수 초)만큼
+    //   불필요히 잔류(슬롯 회수 지연)한다. 닫혔으면 즉시 반환해 그 낭비를 없앤다.
+    if (closed_)
+    {
+      return;
+    }
+    // 미인증 상태의 절대 마감을 건다(설정 시). 인증 성공 시 유휴 마감으로 전환된다.
+    ArmHandshakeDeadline();
+    ReadHeader();
+  });
 }
 
 void Session::ArmHandshakeDeadline()

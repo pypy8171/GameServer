@@ -22,6 +22,7 @@ add_executable(core_tests
   game_entry_test.cpp
   session_backpressure_test.cpp
   session_policy_test.cpp
+  session_start_test.cpp
 )
 target_link_libraries(core_tests PRIVATE
   game_core game_proto chat_logic game_logic
