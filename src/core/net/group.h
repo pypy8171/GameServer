@@ -30,7 +30,9 @@ class Group
 {
  public:
   void Join(const SessionPtr& s);
-  void Leave(SessionId id);  // 멱등: 없는 id 는 no-op
+  // 멱등: 없는 id 는 no-op. 실제로 제거했으면 true(멤버였음), 아니면 false —
+  //   Room 이 OnLeave 훅을 실제 멤버였을 때만 발화하도록 게이트하는 데 쓴다.
+  bool Leave(SessionId id);
 
   // 순수 결정: 현재 멤버에서 except(발신자 등)를 뺀 수명안전 스냅샷.
   //   except==0 이면 전원. Broadcast 의 "누가 받는가" 판정을 I/O 와 분리해 단위 테스트.

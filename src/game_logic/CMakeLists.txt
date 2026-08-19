@@ -5,6 +5,7 @@ add_library(game_logic STATIC
   account/password_hash.cpp
   account/in_memory_account_repository.cpp
   login/login_handlers.cpp
+  presence/presence.cpp
   world/world.cpp
   game/game_handlers.cpp
 )

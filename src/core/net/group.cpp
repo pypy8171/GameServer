@@ -11,10 +11,10 @@ void Group::Join(const SessionPtr& s)
   members_[s->id()] = s;  // 같은 id 재가입 = 덮어쓰기(여전히 1)
 }
 
-void Group::Leave(SessionId id)
+bool Group::Leave(SessionId id)
 {
   std::lock_guard<std::mutex> lock(mu_);
-  members_.erase(id);  // 없으면 no-op = 멱등
+  return members_.erase(id) > 0;  // 없으면 no-op = 멱등, 반환=실제 제거 여부
 }
 
 std::vector<SessionPtr> Group::SnapshotRecipients(SessionId except) const

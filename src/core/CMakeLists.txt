@@ -7,6 +7,7 @@ add_library(game_core STATIC
   net/session.cpp
   net/session_registry.cpp
   net/group.cpp
+  net/room.cpp
   net/server.cpp
   log/log.cpp
 )
