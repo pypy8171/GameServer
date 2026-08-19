@@ -13,6 +13,7 @@ add_executable(core_tests
   dispatcher_test.cpp
   registry_test.cpp
   group_test.cpp
+  group_pool_leak_test.cpp
   chat_relay_test.cpp
   log_test.cpp
   password_hash_test.cpp
