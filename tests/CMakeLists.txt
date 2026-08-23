@@ -21,6 +21,7 @@ add_executable(core_tests
   account_repository_test.cpp
   login_handler_test.cpp
   world_test.cpp
+  world_room_membership_test.cpp
   game_entry_test.cpp
   session_backpressure_test.cpp
   session_policy_test.cpp

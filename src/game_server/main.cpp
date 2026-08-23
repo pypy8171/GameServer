@@ -156,8 +156,9 @@ int main(int argc, char** argv)
         world.PostEnter(s, pid);
       });  // [ADR-P/J/N]
   // 게임(인게임 액션) 핸들러 배선: 이동(MoveRequest→월드 strand 변이→MoveNotify
-  //   전원 브로드캐스트). registry 는 위에서 선언돼 dispatcher 보다 오래 산다.
-  game::logic::RegisterGameHandlers(dispatcher, world, registry);
+  //   방 멤버 팬아웃). 팬아웃은 World 가 포함한 코어 Room 을 통과한다(ADR-X 결정 B) —
+  //   registry 를 넘길 필요 없음.
+  game::logic::RegisterGameHandlers(dispatcher, world);
   // 바인드/리슨 실패(포트 점유 등)는 Server 생성자에서 예외로 던진다. worker
   //   try/catch 진입 이전이라 감싸지 않으면 로그 없이 terminate → FATAL 로 원인을
   //   남기고 큐를 flush 한 뒤 정상 종료 코드로 나간다(chat_server 와 동일 규율).

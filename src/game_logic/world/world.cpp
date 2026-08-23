@@ -14,10 +14,7 @@ using game::core::PacketId;
 using game::core::SessionId;
 using game::core::SessionPtr;
 
-World::World(asio::io_context& io)
-    : strand_(asio::make_strand(io.get_executor()))
-{
-}
+World::World(asio::io_context& io) : room_(io, kWorldRoomId) {}
 
 std::optional<PlayerEntity> World::Enter(SessionId sid, PlayerId pid)
 {
@@ -68,7 +65,7 @@ std::optional<PlayerEntity> World::Move(SessionId sid, float x, float y)
 void World::PostEnter(const SessionPtr& s, PlayerId pid)
 {
   const SessionId sid = s->id();
-  asio::post(strand_, [this, s, sid, pid] {
+  asio::post(room_.strand(), [this, s, sid, pid] {
     const auto spawn = Enter(sid, pid);
     if (!spawn)
     {
@@ -77,6 +74,9 @@ void World::PostEnter(const SessionPtr& s, PlayerId pid)
       LOG_WARN("[world] 중복 입장 무시 (id={}, player_id={}) — 스폰 미송신", sid, pid);
       return;
     }
+    // 엔티티 삽입 성공 시에만 방 멤버로 Join — 이후 MoveNotify 등 월드 팬아웃 대상이
+    //   되고, Room 이 세션을 강참조로 붙든다(W-1: PostLeave 가 해제 책임).
+    room_.Join(s);
     s->Send(MakePacket(PacketId::WorldEnteredNotify,
                        MakeWorldEnteredNotify(*spawn)));
   });
@@ -84,12 +84,18 @@ void World::PostEnter(const SessionPtr& s, PlayerId pid)
 
 void World::PostLeave(SessionId sid)
 {
-  asio::post(strand_, [this, sid] { Leave(sid); });
+  // 엔티티 제거 + 방 멤버 해제를 같은 strand 에서 함께 — Leave(엔티티)는 상태 정리,
+  //   room_.Leave 는 마지막 강참조를 놓아 풀 슬롯을 반납한다(W-1). 입장 때 Join 이
+  //   먼저 post 됐으므로(FIFO) 여기 Leave 가 항상 그 뒤에 돈다(누수 없음).
+  asio::post(room_.strand(), [this, sid] {
+    Leave(sid);
+    room_.Leave(sid);
+  });
 }
 
-void World::PostMove(SessionId sid, float x, float y, BroadcastSink broadcast)
+void World::PostMove(SessionId sid, float x, float y)
 {
-  asio::post(strand_, [this, sid, x, y, broadcast = std::move(broadcast)] {
+  asio::post(room_.strand(), [this, sid, x, y] {
     const auto moved = Move(sid, x, y);
     if (!moved)
     {
@@ -99,9 +105,10 @@ void World::PostMove(SessionId sid, float x, float y, BroadcastSink broadcast)
       LOG_WARN("[world] 미입장 세션 이동 무시 (id={})", sid);
       return;
     }
-    // MoveNotify 는 이동한 본인 포함 전원에 팬아웃한다(except=0). player_id 는
-    //   서버가 세션 신원에서 채운 값 — 클라 주장 아님(스푸핑 차단).
-    broadcast(MakePacket(PacketId::MoveNotify, MakeMoveNotify(*moved)));
+    // MoveNotify 는 이동한 본인 포함 방 멤버 전원에 팬아웃(except=0). player_id 는
+    //   서버가 세션 신원에서 채운 값 — 클라 주장 아님(스푸핑 차단). 팬아웃이 코어
+    //   Room 의 멤버 Group 을 통과하므로 입장한 플레이어에게만 간다(미인증 연결 제외).
+    room_.Broadcast(MakePacket(PacketId::MoveNotify, MakeMoveNotify(*moved)));
   });
 }
 

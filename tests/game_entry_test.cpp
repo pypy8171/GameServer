@@ -123,8 +123,9 @@ TEST(GameEntry, LoginEntersWorldAndReceivesSpawn)
 }
 
 // 멀티클라이언트: 한 클라의 MoveRequest 로 생성된 MoveNotify 를 '다른' 클라도 받는다.
-//   단일 클라 테스트는 본인 되받기만 본다 — 여기서는 registry 팬아웃이 접속한 전원의
-//   실제 소켓으로 나가는 크로스세션 브로드캐스트 경로를 검증한다. [U-7]
+//   단일 클라 테스트는 본인 되받기만 본다 — 여기서는 코어 Room 멤버 Group 팬아웃이
+//   입장한 다른 세션의 실제 소켓으로 나가는 크로스세션 브로드캐스트를 검증한다. [U-7]
+//   (ADR-X 결정 B: 팬아웃이 registry 전역이 아니라 World 가 포함한 Room 을 통과.)
 TEST(GameEntry, MoveNotifyBroadcastsToOtherClients)
 {
   asio::io_context server_io;
@@ -139,7 +140,7 @@ TEST(GameEntry, MoveNotifyBroadcastsToOtherClients)
                         [&world](const SessionPtr& s, PlayerId pid) {
                           world.PostEnter(s, pid);
                         });
-  RegisterGameHandlers(dispatcher, world, registry);
+  RegisterGameHandlers(dispatcher, world);
   Server server(server_io, MultiPort, dispatcher, registry);
   server.set_on_disconnect(
       [&world](const SessionPtr& s) { world.PostLeave(s->id()); });
@@ -186,9 +187,9 @@ TEST(GameEntry, MoveNotifyBroadcastsToOtherClients)
   server_thread.join();
 }
 
-// 입장한 인증세션의 MoveRequest → World strand 위치 변이 → MoveNotify 를 전원(본인
-//   포함) 브로드캐스트로 되받는다. 유닛이 못 건드리는 비동기 경로(디스패치 → World
-//   strand hop → registry 팬아웃)가 소켓 위에서 도는지 검증한다. [MG-⑦]
+// 입장한 인증세션의 MoveRequest → World strand 위치 변이 → MoveNotify 를 방 멤버(본인
+//   포함) 팬아웃으로 되받는다. 유닛이 못 건드리는 비동기 경로(디스패치 → World strand
+//   hop → 코어 Room 멤버 Group 팬아웃)가 소켓 위에서 도는지 검증한다. [MG-⑦]
 TEST(GameEntry, MoveRequestBroadcastsMoveNotify)
 {
   asio::io_context server_io;
@@ -202,7 +203,7 @@ TEST(GameEntry, MoveRequestBroadcastsMoveNotify)
                         [&world](const SessionPtr& s, PlayerId pid) {
                           world.PostEnter(s, pid);
                         });
-  RegisterGameHandlers(dispatcher, world, registry);
+  RegisterGameHandlers(dispatcher, world);
   Server server(server_io, MovePort, dispatcher, registry);
   server.set_on_disconnect(
       [&world](const SessionPtr& s) { world.PostLeave(s->id()); });
