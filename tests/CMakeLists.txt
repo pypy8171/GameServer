@@ -15,6 +15,7 @@ add_executable(core_tests
   group_test.cpp
   group_pool_leak_test.cpp
   presence_sweep_test.cpp
+  match_room_test.cpp
   chat_relay_test.cpp
   log_test.cpp
   password_hash_test.cpp
