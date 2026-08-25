@@ -83,10 +83,6 @@ constexpr bool IsServerToClient(uint16_t id)
   return (id >= 0x2000 && id < 0x3000) || (id >= 0x9000 && id < 0xA000);
 }
 
-// NOTE(endianness): 헤더는 현재 호스트 바이트오더로 직렬화한다.
-// x64 Windows(리틀엔디안) 단일 플랫폼 기준의 의도적 단순화이며,
-// 이기종 클러스터로 확장 시 htons/ntohs 정규화가 필요하다. (PROGRESS.md 참조)
-
 // 헤더 (de)serialize 를 한 곳으로 집약한다(D6/F4 엔디안 정규화 흡수).
 // 와이어 포맷 = little-endian 고정. 바이트 단위 load/store 라 호스트 바이트오더에
 // 무관하게 정답이며, x64(LE)에선 단일 mov 로 컴파일된다(no-op 래퍼 아님).
